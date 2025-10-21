@@ -1,13 +1,17 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.33.0'
 
+// ------------------------
+// Supabase Configuration
+// ------------------------
 const SUPABASE_URL = 'https://egusoznrqlddxpyqstqw.supabase.co'
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVndXNvem5ycWxkZHhweXFzdHF3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA0MTQyOTIsImV4cCI6MjA3NTk5MDI5Mn0.N4TwIWVzTWMpmLJD95-wFd3NseWKrqNFb8gOWXIuf-c'
+const SUPABASE_ANON_KEY =
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVndXNvem5ycWxkZHhweXFzdHF3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA0MTQyOTIsImV4cCI6MjA3NTk5MDI5Mn0.N4TwIWVzTWMpmLJD95-wFd3NseWKrqNFb8gOWXIuf-c'
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
-    detectSessionInUrl: true, // SDK will parse the redirect hash for you
+    detectSessionInUrl: true,
   },
 })
 
@@ -15,7 +19,9 @@ let currentUser = null
 let selectedUser = null
 let messageChannel = null
 
+// ------------------------
 // Elements
+// ------------------------
 const authDiv = document.getElementById('auth')
 const appDiv = document.getElementById('app')
 const chatDiv = document.getElementById('chat')
@@ -29,7 +35,9 @@ const profileName = document.getElementById('profile-name')
 const profileAvatarInput = document.getElementById('profile-avatar')
 const currentAvatar = document.getElementById('current-avatar')
 
-// Tabs
+// ------------------------
+// UI Navigation
+// ------------------------
 document.getElementById('tab-chat').onclick = () => {
   chatDiv.classList.remove('hidden')
   profileDiv.classList.add('hidden')
@@ -39,8 +47,19 @@ document.getElementById('tab-profile').onclick = () => {
   chatDiv.classList.add('hidden')
 }
 
-// Buttons
-document.getElementById('sign-in-btn').onclick = signIn
+// ------------------------
+// Auth Buttons
+// ------------------------
+document.getElementById('sign-in-btn').onclick = async () => {
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo: window.location.href, // keep user on same page after login
+    },
+  })
+  if (error) console.error('Sign-in error:', error.message)
+}
+
 document.getElementById('sign-out-btn').onclick = signOut
 document.getElementById('send-btn').onclick = sendMessage
 document.getElementById('save-profile-btn').onclick = saveProfile
@@ -54,38 +73,23 @@ function getAvatarUrl(user) {
 }
 
 // ------------------------
-// Auth
+// Auth Functions
 // ------------------------
-async function signIn() {
-  // Use current origin + path so redirectTo exactly matches where page is served
-  const redirectTo = window.location.origin + window.location.pathname
-  const { error } = await supabase.auth.signInWithOAuth({
-    provider: 'google',
-    options: { redirectTo },
-  })
-  if (error) console.error('Sign-in error:', error.message)
-}
-
 async function signOut() {
   await supabase.auth.signOut()
   currentUser = null
   selectedUser = null
+
   if (messageChannel) {
     supabase.removeChannel(messageChannel)
     messageChannel = null
   }
-  // reset UI
-  appDiv.classList.add('hidden')
-  authDiv.classList.remove('hidden')
-  chatDiv.classList.add('hidden')
-  profileDiv.classList.add('hidden')
+
   messagesDiv.innerHTML = ''
   userList.innerHTML = ''
+  showAuth()
 }
 
-// ------------------------
-// Ensure user profile
-// ------------------------
 async function ensureUserProfile(user) {
   if (!user) return
   const { error } = await supabase
@@ -103,19 +107,24 @@ async function ensureUserProfile(user) {
 }
 
 // ------------------------
-// Load users
+// Users
 // ------------------------
 async function loadUsers() {
   if (!currentUser?.id) return
+
   const { data, error } = await supabase
     .from('profiles')
     .select('*')
     .neq('id', currentUser.id)
     .order('name', { ascending: true })
 
-  userList.innerHTML = ''
   if (error) return console.error('Load users error:', error.message)
-  if (!data.length) return (userList.innerHTML = '<li>No other users</li>')
+
+  userList.innerHTML = ''
+  if (!data.length) {
+    userList.innerHTML = '<li>No other users</li>'
+    return
+  }
 
   data.forEach((u) => {
     const li = document.createElement('li')
@@ -126,7 +135,7 @@ async function loadUsers() {
 }
 
 // ------------------------
-// Select user
+// Chat
 // ------------------------
 function selectUser(user) {
   selectedUser = user
@@ -137,9 +146,6 @@ function selectUser(user) {
   subscribeToMessages()
 }
 
-// ------------------------
-// Send message
-// ------------------------
 async function sendMessage() {
   const text = messageInput.value.trim()
   if (!text || !currentUser?.id || !selectedUser?.id) return
@@ -157,11 +163,9 @@ async function sendMessage() {
   else messageInput.value = ''
 }
 
-// ------------------------
-// Load messages
-// ------------------------
 async function loadMessages() {
   if (!currentUser?.id || !selectedUser?.id) return
+
   const { data, error } = await supabase
     .from('messages')
     .select('*')
@@ -170,9 +174,9 @@ async function loadMessages() {
     )
     .order('created_at', { ascending: true })
 
-  messagesDiv.innerHTML = ''
   if (error) return console.error('Load messages error:', error.message)
 
+  messagesDiv.innerHTML = ''
   data.forEach(appendMessage)
   messagesDiv.scrollTop = messagesDiv.scrollHeight
 }
@@ -202,23 +206,23 @@ function appendMessage(msg) {
 }
 
 // ------------------------
-// Real-time subscription
+// Real-time Messaging
 // ------------------------
 function subscribeToMessages() {
   if (messageChannel) {
     supabase.removeChannel(messageChannel)
     messageChannel = null
   }
-
   if (!currentUser?.id || !selectedUser?.id) return
 
   messageChannel = supabase
-    .channel(`chat-${currentUser.id}-${selectedUser.id}`)
+    .channel('realtime:messages')
     .on(
       'postgres_changes',
       { event: 'INSERT', schema: 'public', table: 'messages' },
       (payload) => {
         const msg = payload.new
+        // Only show messages between the two users
         if (
           (msg.sender_id === currentUser.id && msg.receiver_id === selectedUser.id) ||
           (msg.sender_id === selectedUser.id && msg.receiver_id === currentUser.id)
@@ -231,7 +235,7 @@ function subscribeToMessages() {
 }
 
 // ------------------------
-// Save profile
+// Profile
 // ------------------------
 async function saveProfile() {
   if (!currentUser?.id) return
@@ -264,11 +268,13 @@ async function saveProfile() {
 }
 
 // ------------------------
-// Init: handle session and auth changes
+// Initialize App
 // ------------------------
 ;(async function initApp() {
   try {
-    // 1) Get initial session (SDK will have already processed the URL hash if detectSessionInUrl is true)
+    // Give Supabase a moment to process OAuth redirect
+    await new Promise((resolve) => setTimeout(resolve, 400))
+
     const {
       data: { session },
     } = await supabase.auth.getSession()
@@ -276,26 +282,15 @@ async function saveProfile() {
     if (session?.user) {
       currentUser = session.user
       await ensureUserProfile(currentUser)
-      authDiv.classList.add('hidden')
-      appDiv.classList.remove('hidden')
-      profileName.value = currentUser.user_metadata.full_name || currentUser.email
-      currentAvatar.src = getAvatarUrl(currentUser)
-      await loadUsers()
+      showApp()
     } else {
-      authDiv.classList.remove('hidden')
+      showAuth()
     }
 
-    // 2) Subscribe to auth state changes
     supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_IN' && session?.user) {
         currentUser = session.user
-        ensureUserProfile(currentUser).then(() => {
-          authDiv.classList.add('hidden')
-          appDiv.classList.remove('hidden')
-          profileName.value = currentUser.user_metadata.full_name || currentUser.email
-          currentAvatar.src = getAvatarUrl(currentUser)
-          loadUsers()
-        })
+        ensureUserProfile(currentUser).then(showApp)
       } else if (event === 'SIGNED_OUT') {
         signOut()
       }
@@ -304,3 +299,16 @@ async function saveProfile() {
     console.error('Initialization error:', err)
   }
 })()
+
+function showApp() {
+  authDiv.classList.add('hidden')
+  appDiv.classList.remove('hidden')
+  profileName.value = currentUser.user_metadata.full_name || currentUser.email
+  currentAvatar.src = getAvatarUrl(currentUser)
+  loadUsers()
+}
+
+function showAuth() {
+  appDiv.classList.add('hidden')
+  authDiv.classList.remove('hidden')
+}
