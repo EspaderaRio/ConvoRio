@@ -267,48 +267,50 @@ async function saveProfile() {
   await loadUsers()
 }
 
+// ---------------------------
+// Handle login redirect first
+// ---------------------------
+;(async function handleRedirect() {
+  const hash = window.location.hash
+  if (hash.includes('access_token')) {
+    const { data, error } = await supabase.auth.exchangeCodeForSession(window.location.href)
+    if (error) console.error('Exchange error:', error.message)
+    else console.log('Session restored after redirect:', data.session)
+    window.location.hash = '' // Clean up the URL
+  }
+})()
+
 // ------------------------
 // Initialize App
 // ------------------------
 ;(async function initApp() {
-  try {
-    // Give Supabase a moment to process OAuth redirect
-    await new Promise((resolve) => setTimeout(resolve, 400))
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
 
-    const {
-      data: { session },
-    } = await supabase.auth.getSession()
+  if (session?.user) {
+    currentUser = session.user
+    showApp()
+  } else {
+    showAuth()
+  }
 
+  supabase.auth.onAuthStateChange((_event, session) => {
     if (session?.user) {
       currentUser = session.user
-      await ensureUserProfile(currentUser)
       showApp()
     } else {
       showAuth()
     }
-
-    supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_IN' && session?.user) {
-        currentUser = session.user
-        ensureUserProfile(currentUser).then(showApp)
-      } else if (event === 'SIGNED_OUT') {
-        signOut()
-      }
-    })
-  } catch (err) {
-    console.error('Initialization error:', err)
-  }
+  })
 })()
 
 function showApp() {
-  authDiv.classList.add('hidden')
-  appDiv.classList.remove('hidden')
-  profileName.value = currentUser.user_metadata.full_name || currentUser.email
-  currentAvatar.src = getAvatarUrl(currentUser)
-  loadUsers()
+  document.getElementById('auth').classList.add('hidden')
+  document.getElementById('app').classList.remove('hidden')
 }
 
 function showAuth() {
-  appDiv.classList.add('hidden')
-  authDiv.classList.remove('hidden')
+  document.getElementById('app').classList.add('hidden')
+  document.getElementById('auth').classList.remove('hidden')
 }
