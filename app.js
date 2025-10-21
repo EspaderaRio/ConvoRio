@@ -53,7 +53,7 @@ document.getElementById('save-profile-btn').onclick = saveProfile
 async function signIn() {
   const { error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
-    options: { redirectTo: window.location.origin + window.location.pathname }
+    options: { redirectTo: 'https://espaderario.github.io/ConvoRio/' }
   })
   if (error) console.error('Sign-in error:', error.message)
 }
