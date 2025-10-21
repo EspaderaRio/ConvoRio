@@ -44,20 +44,18 @@ document.getElementById('tab-profile').onclick = () => {
 }
 
 // ---------- Buttons ----------
-document.getElementById('sign-in-btn').onclick = signInWithGoogle;
+document.getElementById('sign-in-btn').onclick = signIn
 document.getElementById('sign-out-btn').onclick = signOut
 document.getElementById('send-btn').onclick = sendMessage
 document.getElementById('save-profile-btn').onclick = saveProfile
 
 // ---------- Auth ----------
-async function signInWithGoogle() {
-  const { data, error } = await supabase.auth.signInWithOAuth({
+async function signIn() {
+  const { error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
-    options: {
-      redirectTo: 'https://espaderario.github.io/ConvoRio/'
-    }
-  });
-  if (error) console.error(error);
+    options: { redirectTo: window.location.origin + window.location.pathname }
+  })
+  if (error) console.error('Sign-in error:', error.message)
 }
 
 async function signOut() {
@@ -82,15 +80,12 @@ async function ensureUserProfile(user) {
   if (!user) return
   const { error } = await supabase
     .from('profiles')
-    .upsert(
-      {
-        id: user.id,
-        email: user.email,
-        name: user.user_metadata.full_name || user.email,
-        avatar_url: user.user_metadata.avatar_url || null,
-      },
-      { onConflict: 'id' }
-    )
+    .upsert({
+      id: user.id,
+      email: user.email,
+      name: user.user_metadata.full_name || user.email,
+      avatar_url: user.user_metadata.avatar_url || null,
+    }, { onConflict: 'id' })
   if (error) console.error('Profile upsert error:', error.message)
 }
 
@@ -107,7 +102,7 @@ async function loadUsers() {
   if (error) return console.error('Load users error:', error.message)
   if (!data.length) return (userList.innerHTML = '<li>No other users</li>')
 
-  data.forEach((u) => {
+  data.forEach(u => {
     const li = document.createElement('li')
     li.textContent = u.name || u.email
     li.onclick = () => selectUser(u)
@@ -130,15 +125,12 @@ async function sendMessage() {
   const text = messageInput.value.trim()
   if (!text || !currentUser?.id || !selectedUser?.id) return
 
-  const { error } = await supabase.from('messages').insert([
-    {
-      sender_id: currentUser.id,
-      sender_avatar: getAvatarUrl(currentUser),
-      receiver_id: selectedUser.id,
-      content: text,
-    },
-  ])
-
+  const { error } = await supabase.from('messages').insert([{
+    sender_id: currentUser.id,
+    sender_avatar: getAvatarUrl(currentUser),
+    receiver_id: selectedUser.id,
+    content: text
+  }])
   if (error) console.error('Send message error:', error.message)
   else messageInput.value = ''
 }
@@ -146,21 +138,17 @@ async function sendMessage() {
 // ---------- Load Messages ----------
 async function loadMessages() {
   if (!currentUser?.id || !selectedUser?.id) return
-  const { data, error } = await supabase
-    .from('messages')
+  const { data, error } = await supabase.from('messages')
     .select('*')
-    .or(
-      `and(sender_id.eq.${currentUser.id},receiver_id.eq.${selectedUser.id}),and(sender_id.eq.${selectedUser.id},receiver_id.eq.${currentUser.id})`
-    )
+    .or(`and(sender_id.eq.${currentUser.id},receiver_id.eq.${selectedUser.id}),and(sender_id.eq.${selectedUser.id},receiver_id.eq.${currentUser.id})`)
     .order('created_at', { ascending: true })
 
   messagesDiv.innerHTML = ''
   if (error) return console.error('Load messages error:', error.message)
-
   data.forEach(appendMessage)
-  messagesDiv.scrollTop = messagesDiv.scrollHeight
 }
 
+// ---------- Append Message ----------
 function appendMessage(msg) {
   const msgDiv = document.createElement('div')
   msgDiv.classList.add('message', msg.sender_id === currentUser.id ? 'mine' : 'theirs')
@@ -175,10 +163,7 @@ function appendMessage(msg) {
 
   const timeDiv = document.createElement('div')
   timeDiv.classList.add('timestamp')
-  timeDiv.textContent = new Date(msg.created_at).toLocaleTimeString([], {
-    hour: '2-digit',
-    minute: '2-digit',
-  })
+  timeDiv.textContent = new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 
   msgDiv.append(avatar, textDiv, timeDiv)
   messagesDiv.appendChild(msgDiv)
@@ -191,24 +176,16 @@ function subscribeToMessages() {
     supabase.removeChannel(messageChannel)
     messageChannel = null
   }
-
   if (!currentUser?.id || !selectedUser?.id) return
 
-  messageChannel = supabase
-    .channel(`chat-${currentUser.id}-${selectedUser.id}`)
-    .on(
-      'postgres_changes',
-      { event: 'INSERT', schema: 'public', table: 'messages' },
-      (payload) => {
-        const msg = payload.new
-        if (
-          (msg.sender_id === currentUser.id && msg.receiver_id === selectedUser.id) ||
-          (msg.sender_id === selectedUser.id && msg.receiver_id === currentUser.id)
-        ) {
-          appendMessage(msg)
-        }
+  messageChannel = supabase.channel(`chat-${currentUser.id}-${selectedUser.id}`)
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
+      const msg = payload.new
+      if ((msg.sender_id === currentUser.id && msg.receiver_id === selectedUser.id) ||
+          (msg.sender_id === selectedUser.id && msg.receiver_id === currentUser.id)) {
+        appendMessage(msg)
       }
-    )
+    })
     .subscribe()
 }
 
@@ -223,42 +200,32 @@ async function saveProfile() {
     const ext = file.name.split('.').pop()
     const path = `${currentUser.id}.${ext}`
 
-    const { error: uploadError } = await supabase.storage
-      .from('avatars')
-      .upload(path, file, { upsert: true })
+    const { error: uploadError } = await supabase.storage.from('avatars').upload(path, file, { upsert: true })
     if (uploadError) return console.error('Avatar upload error:', uploadError.message)
 
     const { data } = supabase.storage.from('avatars').getPublicUrl(path)
     avatarUrl = data?.publicUrl || './default-avatar.png'
   }
 
-  const { error } = await supabase
-    .from('profiles')
+  const { error } = await supabase.from('profiles')
     .update({ name: profileName.value, avatar_url: avatarUrl })
     .eq('id', currentUser.id)
 
   if (error) return console.error('Save profile error:', error.message)
-
   currentAvatar.src = avatarUrl
   await loadUsers()
 }
 
-// ---------- Handle Redirect & Init ----------
-;(async function handleRedirect() {
-  const hash = window.location.hash
-  if (hash.includes('access_token')) {
+// ---------- Init App ----------
+async function initApp() {
+  // Handle OAuth redirect (PKCE/Access Token)
+  if (window.location.hash.includes('access_token')) {
     const { data, error } = await supabase.auth.exchangeCodeForSession(window.location.href)
     if (error) console.error('Exchange error:', error.message)
-    else console.log('Session restored after redirect:', data.session)
     window.location.hash = ''
   }
-})()
 
-;(async function initApp() {
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
-
+  const { data: { session } } = await supabase.auth.getSession()
   if (session?.user) {
     currentUser = session.user
     await ensureUserProfile(currentUser)
@@ -275,4 +242,19 @@ async function saveProfile() {
       showAuth()
     }
   })
-})()
+}
+initApp()
+
+// ---------- UI Switch ----------
+function showApp() {
+  authDiv.classList.add('hidden')
+  appDiv.classList.remove('hidden')
+  profileName.value = currentUser.user_metadata.full_name || currentUser.email
+  currentAvatar.src = getAvatarUrl(currentUser)
+  loadUsers()
+}
+
+function showAuth() {
+  appDiv.classList.add('hidden')
+  authDiv.classList.remove('hidden')
+}
