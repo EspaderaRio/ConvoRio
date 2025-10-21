@@ -247,8 +247,20 @@ supabase.auth.onAuthStateChange((event, session) => {
 // ------------------------
 // Init
 // ------------------------
+  // Wait for Supabase to process OAuth redirect
+;(async function handleRedirect() {
+  const { data, error } = await supabase.auth.getSession()
+
+  // If there's no active session yet, try to recover it from URL hash
+  if (!data.session) {
+    await supabase.auth.exchangeCodeForSession(window.location.hash)
+  }
+})()
+
 ;(async function init() {
+  // Wait a moment for session restoration after redirect
   const { data: { session } } = await supabase.auth.getSession()
+
   if (session?.user) {
     currentUser = session.user
     await ensureUserProfile(currentUser)
@@ -261,3 +273,4 @@ supabase.auth.onAuthStateChange((event, session) => {
     authDiv.classList.remove('hidden')
   }
 })()
+
