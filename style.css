@@ -5,9 +5,10 @@ body {
   color: #222;
 }
 
-.hidden {
-  display: none;
-}
+.hidden { display: none; }
+
+nav button { margin-right: 5px; }
+
 
 #chat {
   display: flex;
@@ -53,14 +54,18 @@ body {
   padding: 1rem;
 }
 
-#messages {
-  flex-grow: 1;
-  overflow-y: auto;
-  border: 1px solid #ddd;
-  padding: 1rem;
-  background: white;
-  border-radius: 8px;
-}
+#messages { max-height: 400px; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+
+.message { display: flex; align-items: flex-end; gap: 8px; }
+.message.mine { justify-content: flex-end; }
+.message.theirs { justify-content: flex-start; }
+.message .avatar { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; }
+.message .text { padding: 6px 10px; border-radius: 12px; max-width: 70%; word-wrap: break-word; }
+.message.mine .text { background-color: #0ea5e9; color: white; }
+.message.theirs .text { background-color: #f1f1f1; color: black; }
+.message .timestamp { font-size: 0.7em; color: #555; margin-top: 2px; }
+
+
 
 #message-box {
   display: flex;
