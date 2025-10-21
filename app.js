@@ -1,11 +1,11 @@
+// ============================
+// ConvoRio App (Supabase v2.33)
+// ============================
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.33.0'
 
-// ------------------------
-// Supabase Configuration
-// ------------------------
+// ---------- Supabase Setup ----------
 const SUPABASE_URL = 'https://egusoznrqlddxpyqstqw.supabase.co'
-const SUPABASE_ANON_KEY =
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVndXNvem5ycWxkZHhweXFzdHF3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA0MTQyOTIsImV4cCI6MjA3NTk5MDI5Mn0.N4TwIWVzTWMpmLJD95-wFd3NseWKrqNFb8gOWXIuf-c'
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVndXNvem5ycWxkZHhweXFzdHF3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA0MTQyOTIsImV4cCI6MjA3NTk5MDI5Mn0.N4TwIWVzTWMpmLJD95-wFd3NseWKrqNFb8gOWXIuf-c'
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
@@ -19,9 +19,7 @@ let currentUser = null
 let selectedUser = null
 let messageChannel = null
 
-// ------------------------
-// Elements
-// ------------------------
+// ---------- Elements ----------
 const authDiv = document.getElementById('auth')
 const appDiv = document.getElementById('app')
 const chatDiv = document.getElementById('chat')
@@ -35,9 +33,7 @@ const profileName = document.getElementById('profile-name')
 const profileAvatarInput = document.getElementById('profile-avatar')
 const currentAvatar = document.getElementById('current-avatar')
 
-// ------------------------
-// UI Navigation
-// ------------------------
+// ---------- Tab Navigation ----------
 document.getElementById('tab-chat').onclick = () => {
   chatDiv.classList.remove('hidden')
   profileDiv.classList.add('hidden')
@@ -47,49 +43,39 @@ document.getElementById('tab-profile').onclick = () => {
   chatDiv.classList.add('hidden')
 }
 
-// ------------------------
-// Auth Buttons
-// ------------------------
-document.getElementById('sign-in-btn').onclick = async () => {
-  const { error } = await supabase.auth.signInWithOAuth({
-    provider: 'google',
-    options: {
-      redirectTo: window.location.href, // keep user on same page after login
-    },
-  })
-  if (error) console.error('Sign-in error:', error.message)
-}
-
+// ---------- Buttons ----------
+document.getElementById('sign-in-btn').onclick = signIn
 document.getElementById('sign-out-btn').onclick = signOut
 document.getElementById('send-btn').onclick = sendMessage
 document.getElementById('save-profile-btn').onclick = saveProfile
 
-// ------------------------
-// Helper: Avatar URL
-// ------------------------
+// ---------- Auth ----------
+async function signIn() {
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: { redirectTo: window.location.href },
+  })
+  if (error) console.error('Sign-in error:', error.message)
+}
+
+async function signOut() {
+  await supabase.auth.signOut()
+  currentUser = null
+  selectedUser = null
+  if (messageChannel) {
+    supabase.removeChannel(messageChannel)
+    messageChannel = null
+  }
+  showAuth()
+}
+
+// ---------- Avatar Helper ----------
 function getAvatarUrl(user) {
   if (!user) return './default-avatar.png'
   return user.avatar_url || user.user_metadata?.avatar_url || './default-avatar.png'
 }
 
-// ------------------------
-// Auth Functions
-// ------------------------
-async function signOut() {
-  await supabase.auth.signOut()
-  currentUser = null
-  selectedUser = null
-
-  if (messageChannel) {
-    supabase.removeChannel(messageChannel)
-    messageChannel = null
-  }
-
-  messagesDiv.innerHTML = ''
-  userList.innerHTML = ''
-  showAuth()
-}
-
+// ---------- Ensure Profile ----------
 async function ensureUserProfile(user) {
   if (!user) return
   const { error } = await supabase
@@ -106,25 +92,18 @@ async function ensureUserProfile(user) {
   if (error) console.error('Profile upsert error:', error.message)
 }
 
-// ------------------------
-// Users
-// ------------------------
+// ---------- Load Users ----------
 async function loadUsers() {
   if (!currentUser?.id) return
-
   const { data, error } = await supabase
     .from('profiles')
     .select('*')
     .neq('id', currentUser.id)
     .order('name', { ascending: true })
 
-  if (error) return console.error('Load users error:', error.message)
-
   userList.innerHTML = ''
-  if (!data.length) {
-    userList.innerHTML = '<li>No other users</li>'
-    return
-  }
+  if (error) return console.error('Load users error:', error.message)
+  if (!data.length) return (userList.innerHTML = '<li>No other users</li>')
 
   data.forEach((u) => {
     const li = document.createElement('li')
@@ -134,9 +113,7 @@ async function loadUsers() {
   })
 }
 
-// ------------------------
-// Chat
-// ------------------------
+// ---------- Select User ----------
 function selectUser(user) {
   selectedUser = user
   chatWith.textContent = `Chatting with ${user.name || user.email}`
@@ -146,6 +123,7 @@ function selectUser(user) {
   subscribeToMessages()
 }
 
+// ---------- Send Message ----------
 async function sendMessage() {
   const text = messageInput.value.trim()
   if (!text || !currentUser?.id || !selectedUser?.id) return
@@ -163,9 +141,9 @@ async function sendMessage() {
   else messageInput.value = ''
 }
 
+// ---------- Load Messages ----------
 async function loadMessages() {
   if (!currentUser?.id || !selectedUser?.id) return
-
   const { data, error } = await supabase
     .from('messages')
     .select('*')
@@ -174,9 +152,9 @@ async function loadMessages() {
     )
     .order('created_at', { ascending: true })
 
+  messagesDiv.innerHTML = ''
   if (error) return console.error('Load messages error:', error.message)
 
-  messagesDiv.innerHTML = ''
   data.forEach(appendMessage)
   messagesDiv.scrollTop = messagesDiv.scrollHeight
 }
@@ -205,24 +183,22 @@ function appendMessage(msg) {
   messagesDiv.scrollTop = messagesDiv.scrollHeight
 }
 
-// ------------------------
-// Real-time Messaging
-// ------------------------
+// ---------- Real-Time Subscription ----------
 function subscribeToMessages() {
   if (messageChannel) {
     supabase.removeChannel(messageChannel)
     messageChannel = null
   }
+
   if (!currentUser?.id || !selectedUser?.id) return
 
   messageChannel = supabase
-    .channel('realtime:messages')
+    .channel(`chat-${currentUser.id}-${selectedUser.id}`)
     .on(
       'postgres_changes',
       { event: 'INSERT', schema: 'public', table: 'messages' },
       (payload) => {
         const msg = payload.new
-        // Only show messages between the two users
         if (
           (msg.sender_id === currentUser.id && msg.receiver_id === selectedUser.id) ||
           (msg.sender_id === selectedUser.id && msg.receiver_id === currentUser.id)
@@ -234,9 +210,7 @@ function subscribeToMessages() {
     .subscribe()
 }
 
-// ------------------------
-// Profile
-// ------------------------
+// ---------- Save Profile ----------
 async function saveProfile() {
   if (!currentUser?.id) return
 
@@ -267,22 +241,17 @@ async function saveProfile() {
   await loadUsers()
 }
 
-// ---------------------------
-// Handle login redirect first
-// ---------------------------
+// ---------- Handle Redirect & Init ----------
 ;(async function handleRedirect() {
   const hash = window.location.hash
   if (hash.includes('access_token')) {
     const { data, error } = await supabase.auth.exchangeCodeForSession(window.location.href)
     if (error) console.error('Exchange error:', error.message)
     else console.log('Session restored after redirect:', data.session)
-    window.location.hash = '' // Clean up the URL
+    window.location.hash = '' // cleanup URL
   }
 })()
 
-// ------------------------
-// Initialize App
-// ------------------------
 ;(async function initApp() {
   const {
     data: { session },
@@ -290,6 +259,7 @@ async function saveProfile() {
 
   if (session?.user) {
     currentUser = session.user
+    await ensureUserProfile(currentUser)
     showApp()
   } else {
     showAuth()
@@ -298,19 +268,23 @@ async function saveProfile() {
   supabase.auth.onAuthStateChange((_event, session) => {
     if (session?.user) {
       currentUser = session.user
-      showApp()
+      ensureUserProfile(currentUser).then(showApp)
     } else {
       showAuth()
     }
   })
 })()
 
+// ---------- UI Switch ----------
 function showApp() {
-  document.getElementById('auth').classList.add('hidden')
-  document.getElementById('app').classList.remove('hidden')
+  authDiv.classList.add('hidden')
+  appDiv.classList.remove('hidden')
+  profileName.value = currentUser.user_metadata.full_name || currentUser.email
+  currentAvatar.src = getAvatarUrl(currentUser)
+  loadUsers()
 }
 
 function showAuth() {
-  document.getElementById('app').classList.add('hidden')
-  document.getElementById('auth').classList.remove('hidden')
+  appDiv.classList.add('hidden')
+  authDiv.classList.remove('hidden')
 }
