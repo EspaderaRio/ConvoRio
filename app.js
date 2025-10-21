@@ -34,7 +34,21 @@ document.getElementById('sign-out-btn').onclick = signOut
 document.getElementById('send-btn').onclick = sendMessage
 document.getElementById('save-profile-btn').onclick = saveProfile
 
-// Google Sign-in
+// ------------------------
+// Helper: Avatar URL
+// ------------------------
+function getAvatarUrl(user) {
+  if (!user) return './default-avatar.png'
+  if (user.avatar_url && typeof user.avatar_url === 'string') return user.avatar_url
+  if (user.user_metadata?.avatar_url && typeof user.user_metadata.avatar_url === 'string') {
+    return user.user_metadata.avatar_url
+  }
+  return './default-avatar.png'
+}
+
+// ------------------------
+// Auth
+// ------------------------
 async function signIn() {
   await supabase.auth.signInWithOAuth({
     provider: 'google',
@@ -43,46 +57,14 @@ async function signIn() {
 }
 
 async function signOut() {
-  const { error } = await supabase.auth.signOut()
-  if (error) {
-    console.error("Sign out error:", error.message)
-    return
-  }
-
-  // Clear user state
+  await supabase.auth.signOut()
   currentUser = null
   selectedUser = null
-
-  // Reset UI
   appDiv.classList.add('hidden')
   authDiv.classList.remove('hidden')
-  chatDiv.classList.add('hidden')
-  profileDiv.classList.add('hidden')
-  messageBox.classList.add('hidden')
-  userList.innerHTML = ''
-  messagesDiv.innerHTML = ''
-  profileName.value = ''
-  currentAvatar.src = getAvatarUrl(currentUser);
 }
 
-// Safely get a user's avatar URL
-function getAvatarUrl(user) {
-  if (!user) return './default-avatar.png';
-
-  // If avatar_url exists and is a string, use it
-  if (user.avatar_url && typeof user.avatar_url === 'string') return user.avatar_url;
-
-  // If using Supabase metadata for logged-in user
-  if (user.user_metadata?.avatar_url && typeof user.user_metadata.avatar_url === 'string') {
-    return user.user_metadata.avatar_url;
-  }
-
-  // Fallback to default
-  return './default-avatar.png';
-}
-
-
-// Ensure user profile exists (upsert)
+// Ensure profile exists
 async function ensureUserProfile(user) {
   if (!user) return
   const { error } = await supabase.from('profiles').upsert({
@@ -91,17 +73,23 @@ async function ensureUserProfile(user) {
     name: user.user_metadata.full_name || user.email,
     avatar_url: user.user_metadata.avatar_url || null
   }, { onConflict: 'id' })
-
   if (error) console.error("Profile upsert error:", error.message)
 }
 
-// Load users
+// ------------------------
+// Users list
+// ------------------------
 async function loadUsers() {
   if (!currentUser?.id) return
-  const { data, error } = await supabase.from('profiles').select('*').neq('id', currentUser.id).order('name', { ascending: true })
+  const { data, error } = await supabase.from('profiles')
+    .select('*')
+    .neq('id', currentUser.id)
+    .order('name', { ascending: true })
+
   userList.innerHTML = ''
   if (error) return console.error("Load users error:", error.message)
   if (!data.length) userList.innerHTML = '<li>No other users</li>'
+
   data.forEach(u => {
     const li = document.createElement('li')
     li.textContent = u.name || u.email
@@ -110,7 +98,9 @@ async function loadUsers() {
   })
 }
 
+// ------------------------
 // Select user to chat
+// ------------------------
 function selectUser(user) {
   selectedUser = user
   chatWith.textContent = `Chatting with ${user.name || user.email}`
@@ -118,7 +108,9 @@ function selectUser(user) {
   loadMessages()
 }
 
+// ------------------------
 // Send message
+// ------------------------
 async function sendMessage() {
   const text = messageInput.value.trim()
   if (!text || !currentUser?.id || !selectedUser?.id) return
@@ -129,28 +121,24 @@ async function sendMessage() {
     content: text
   }])
 
-  if (error) {
-    console.error("Send message error:", error.message)
-  } else {
-    messageInput.value = ''
-    await loadMessages() // <- reload messages immediately
-  }
+  if (error) console.error("Send message error:", error.message)
+  else messageInput.value = ''
 }
 
-
-// Load messages between current user and selected user
+// ------------------------
+// Load messages
+// ------------------------
 async function loadMessages() {
   if (!currentUser?.id || !selectedUser?.id) return
-const { data, error } = await supabase
-  .from('messages')
-  .select(`
-    *,
-    sender:sender_id (id, name, avatar_url),
-    receiver:receiver_id (id, name, avatar_url)
-  `)
-  .or(`and(sender_id.eq.${currentUser.id},receiver_id.eq.${selectedUser.id}),and(sender_id.eq.${selectedUser.id},receiver_id.eq.${currentUser.id})`)
-  .order('created_at', { ascending: true })
-
+  const { data, error } = await supabase
+    .from('messages')
+    .select(`
+      *,
+      sender:sender_id(id, name, avatar_url),
+      receiver:receiver_id(id, name, avatar_url)
+    `)
+    .or(`and(sender_id.eq.${currentUser.id},receiver_id.eq.${selectedUser.id}),and(sender_id.eq.${selectedUser.id},receiver_id.eq.${currentUser.id})`)
+    .order('created_at', { ascending: true })
 
   messagesDiv.innerHTML = ''
   if (error) return console.error("Load messages error:", error.message)
@@ -162,7 +150,7 @@ const { data, error } = await supabase
 
     const avatar = document.createElement('img')
     avatar.classList.add('avatar')
-    avatar.src = getAvatarUrl(msg.sender);
+    avatar.src = getAvatarUrl(msg.sender)
 
     const textDiv = document.createElement('div')
     textDiv.classList.add('text')
@@ -179,46 +167,44 @@ const { data, error } = await supabase
   messagesDiv.scrollTop = messagesDiv.scrollHeight
 }
 
+// ------------------------
 // Real-time messages
-supabase.channel('messages-channel').on(
-  'postgres_changes',
-  { event: 'INSERT', schema: 'public', table: 'messages' },
-  payload => {
+// ------------------------
+supabase.channel('messages-channel')
+  .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
     const msg = payload.new
+    // Only reload if message is between current user and selected user
     if ((msg.sender_id === currentUser?.id && msg.receiver_id === selectedUser?.id) ||
         (msg.sender_id === selectedUser?.id && msg.receiver_id === currentUser?.id)) {
       loadMessages()
     }
-  }
-).subscribe()
+  })
+  .subscribe()
 
+// ------------------------
 // Save profile (name + avatar)
+// ------------------------
 async function saveProfile() {
   if (!currentUser?.id) return
 
-  let avatarUrl = currentAvatar.src
+  let avatarUrl = getAvatarUrl(currentUser)
 
-if (profileAvatarInput.files.length > 0) {
-  const file = profileAvatarInput.files[0];
-  const ext = file.name.split('.').pop();
-  const path = `${currentUser.id}.${ext}`;
+  if (profileAvatarInput.files.length > 0) {
+    const file = profileAvatarInput.files[0]
+    const ext = file.name.split('.').pop()
+    const path = `${currentUser.id}.${ext}`
 
-  // Upload file to Supabase Storage
-  const { error: uploadError } = await supabase
-    .storage.from('avatars')
-    .upload(path, file, { upsert: true });
+    // Upload to Supabase storage
+    const { error: uploadError } = await supabase.storage.from('avatars').upload(path, file, { upsert: true })
+    if (uploadError) return console.error("Avatar upload error:", uploadError.message)
 
-  if (uploadError) return console.error("Avatar upload error:", uploadError.message);
+    const { data } = supabase.storage.from('avatars').getPublicUrl(path)
+    avatarUrl = data?.publicUrl || './default-avatar.png'
+  }
 
-  // Get public URL safely
-  const { data } = supabase.storage.from('avatars').getPublicUrl(path);
-  avatarUrl = data?.publicUrl || './default-avatar.png';
-}
-
-  const { error } = await supabase.from('profiles').update({
-    name: profileName.value,
-    avatar_url: avatarUrl
-  }).eq('id', currentUser.id)
+  const { error } = await supabase.from('profiles')
+    .update({ name: profileName.value, avatar_url: avatarUrl })
+    .eq('id', currentUser.id)
 
   if (error) return console.error("Save profile error:", error.message)
 
@@ -235,15 +221,14 @@ supabase.auth.onAuthStateChange((event, session) => {
     ensureUserProfile(currentUser).then(() => {
       authDiv.classList.add('hidden')
       appDiv.classList.remove('hidden')
-      profileDiv.classList.add('hidden')
-      chatDiv.classList.remove('hidden')
       profileName.value = currentUser.user_metadata.full_name || currentUser.email
-      currentAvatar.src = currentUser.user_metadata.avatar_url || './default-avatar.png'
+      currentAvatar.src = getAvatarUrl(currentUser)
       loadUsers()
     })
   }
-})
 
+  if (event === 'SIGNED_OUT') signOut()
+})
 
 // ------------------------
 // Init
@@ -258,10 +243,9 @@ supabase.auth.onAuthStateChange((event, session) => {
     authDiv.classList.add('hidden')
     appDiv.classList.remove('hidden')
     profileName.value = currentUser.user_metadata.full_name || currentUser.email
-    currentAvatar.src = currentUser.user_metadata.avatar_url || './default-avatar.png'
+    currentAvatar.src = getAvatarUrl(currentUser)
     await loadUsers()
   } else {
     authDiv.classList.remove('hidden')
   }
 })()
-
