@@ -61,7 +61,15 @@ function renderAuthUI(user){
     const signUpBtn = el('button', { onClick: () => signUp(emailInput.value, passInput.value) }, 'Sign up')
     const magicBtn = el('button', { onClick: () => signInMagic(emailInput.value) }, 'Send Magic Link')
 
-    authArea.append(emailInput, passInput, signInBtn, signUpBtn, magicBtn)
+// 🆕 Add Google sign-in button
+const googleBtn = el(
+  'button',
+  { onClick: signInWithGoogle },
+  'Sign in with Google'
+)
+
+authArea.append(emailInput, passInput, signInBtn, signUpBtn, magicBtn, googleBtn)
+
     myInfo.textContent = 'Not signed in'
   }
 }
@@ -88,22 +96,31 @@ async function signInMagic(email){
   alert('Magic link sent to ' + email)
 }
 
+async function signInWithGoogle() {
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo: window.location.origin // returns here after Google login
+    }
+  })
+  if (error) alert('Google sign-in error: ' + error.message)
+}
+
 async function signOut(){
   await supabase.auth.signOut()
   // state will update via listener
 }
 
 // ---------- Profiles & users ----------
-async function ensureProfile(user){
-  // create a minimal profile row if none exists
-  const { data: p, error } = await supabase
+async function ensureProfile(user) {
+  const { data: p } = await supabase
     .from('profiles')
     .select('*')
     .eq('id', user.id)
     .single()
-  if (error && error.details && !p) {
-    // try insert
-    const username = user.email.split('@')[0]
+
+  if (!p) {
+    const username = user.user_metadata?.full_name || user.email.split('@')[0]
     await supabase.from('profiles').insert([{ id: user.id, username }])
   }
 }
