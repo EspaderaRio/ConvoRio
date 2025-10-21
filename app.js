@@ -103,11 +103,16 @@ async function sendMessage() {
 // Load messages between current user and selected user
 async function loadMessages() {
   if (!currentUser?.id || !selectedUser?.id) return
-  const { data, error } = await supabase
-    .from('messages')
-    .select('*, sender:profiles(id,name,avatar_url)')
-    .or(`and(sender_id.eq.${currentUser.id},receiver_id.eq.${selectedUser.id}),and(sender_id.eq.${selectedUser.id},receiver_id.eq.${currentUser.id})`)
-    .order('created_at', { ascending: true })
+const { data, error } = await supabase
+  .from('messages')
+  .select(`
+    *,
+    sender:sender_id (id, name, avatar_url),
+    receiver:receiver_id (id, name, avatar_url)
+  `)
+  .or(`and(sender_id.eq.${currentUser.id},receiver_id.eq.${selectedUser.id}),and(sender_id.eq.${selectedUser.id},receiver_id.eq.${currentUser.id})`)
+  .order('created_at', { ascending: true })
+
 
   messagesDiv.innerHTML = ''
   if (error) return console.error("Load messages error:", error.message)
