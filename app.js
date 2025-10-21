@@ -44,18 +44,20 @@ document.getElementById('tab-profile').onclick = () => {
 }
 
 // ---------- Buttons ----------
-document.getElementById('sign-in-btn').onclick = signIn
+document.getElementById('sign-in-btn').onclick = signInWithGoogle;
 document.getElementById('sign-out-btn').onclick = signOut
 document.getElementById('send-btn').onclick = sendMessage
 document.getElementById('save-profile-btn').onclick = saveProfile
 
 // ---------- Auth ----------
-async function signIn() {
-  const { error } = await supabase.auth.signInWithOAuth({
+async function signInWithGoogle() {
+  const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
-    options: { redirectTo: window.location.href },
-  })
-  if (error) console.error('Sign-in error:', error.message)
+    options: {
+      redirectTo: 'https://espaderario.github.io/ConvoRio/'
+    }
+  });
+  if (error) console.error(error);
 }
 
 async function signOut() {
@@ -248,7 +250,7 @@ async function saveProfile() {
     const { data, error } = await supabase.auth.exchangeCodeForSession(window.location.href)
     if (error) console.error('Exchange error:', error.message)
     else console.log('Session restored after redirect:', data.session)
-    window.location.hash = '' // cleanup URL
+    window.location.hash = ''
   }
 })()
 
@@ -274,17 +276,3 @@ async function saveProfile() {
     }
   })
 })()
-
-// ---------- UI Switch ----------
-function showApp() {
-  authDiv.classList.add('hidden')
-  appDiv.classList.remove('hidden')
-  profileName.value = currentUser.user_metadata.full_name || currentUser.email
-  currentAvatar.src = getAvatarUrl(currentUser)
-  loadUsers()
-}
-
-function showAuth() {
-  appDiv.classList.add('hidden')
-  authDiv.classList.remove('hidden')
-}
