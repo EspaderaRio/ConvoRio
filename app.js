@@ -7,7 +7,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
-    detectSessionInUrl: true,
+    detectSessionInUrl: true, // SDK will parse the redirect hash for you
   },
 })
 
@@ -57,11 +57,11 @@ function getAvatarUrl(user) {
 // Auth
 // ------------------------
 async function signIn() {
+  // Use current origin + path so redirectTo exactly matches where page is served
+  const redirectTo = window.location.origin + window.location.pathname
   const { error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
-    options: {
-      redirectTo: 'https://espaderario.github.io/ConvoRio/',
-    },
+    options: { redirectTo },
   })
   if (error) console.error('Sign-in error:', error.message)
 }
@@ -74,8 +74,13 @@ async function signOut() {
     supabase.removeChannel(messageChannel)
     messageChannel = null
   }
+  // reset UI
   appDiv.classList.add('hidden')
   authDiv.classList.remove('hidden')
+  chatDiv.classList.add('hidden')
+  profileDiv.classList.add('hidden')
+  messagesDiv.innerHTML = ''
+  userList.innerHTML = ''
 }
 
 // ------------------------
@@ -127,6 +132,7 @@ function selectUser(user) {
   selectedUser = user
   chatWith.textContent = `Chatting with ${user.name || user.email}`
   messageBox.classList.remove('hidden')
+  messagesDiv.innerHTML = ''
   loadMessages()
   subscribeToMessages()
 }
@@ -141,7 +147,7 @@ async function sendMessage() {
   const { error } = await supabase.from('messages').insert([
     {
       sender_id: currentUser.id,
-      sender_avatar: currentUser.user_metadata.avatar_url || './default-avatar.png',
+      sender_avatar: getAvatarUrl(currentUser),
       receiver_id: selectedUser.id,
       content: text,
     },
@@ -192,6 +198,7 @@ function appendMessage(msg) {
 
   msgDiv.append(avatar, textDiv, timeDiv)
   messagesDiv.appendChild(msgDiv)
+  messagesDiv.scrollTop = messagesDiv.scrollHeight
 }
 
 // ------------------------
@@ -217,7 +224,6 @@ function subscribeToMessages() {
           (msg.sender_id === selectedUser.id && msg.receiver_id === currentUser.id)
         ) {
           appendMessage(msg)
-          messagesDiv.scrollTop = messagesDiv.scrollHeight
         }
       }
     )
@@ -258,18 +264,14 @@ async function saveProfile() {
 }
 
 // ------------------------
-// Initialize session + auth
+// Init: handle session and auth changes
 // ------------------------
 ;(async function initApp() {
   try {
-    // Handle OAuth redirect first
-    const hash = window.location.hash
-    if (hash && hash.includes('access_token')) {
-      await supabase.auth.exchangeCodeForSession(hash)
-      window.location.hash = ''
-    }
-
-    const { data: { session } } = await supabase.auth.getSession()
+    // 1) Get initial session (SDK will have already processed the URL hash if detectSessionInUrl is true)
+    const {
+      data: { session },
+    } = await supabase.auth.getSession()
 
     if (session?.user) {
       currentUser = session.user
@@ -283,16 +285,18 @@ async function saveProfile() {
       authDiv.classList.remove('hidden')
     }
 
-    // Auth listener (fixed)
-    supabase.auth.onAuthStateChange((_event, session) => {
-      if (session?.user) {
+    // 2) Subscribe to auth state changes
+    supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session?.user) {
         currentUser = session.user
-        authDiv.classList.add('hidden')
-        appDiv.classList.remove('hidden')
-        profileName.value = currentUser.user_metadata.full_name || currentUser.email
-        currentAvatar.src = getAvatarUrl(currentUser)
-        loadUsers()
-      } else {
+        ensureUserProfile(currentUser).then(() => {
+          authDiv.classList.add('hidden')
+          appDiv.classList.remove('hidden')
+          profileName.value = currentUser.user_metadata.full_name || currentUser.email
+          currentAvatar.src = getAvatarUrl(currentUser)
+          loadUsers()
+        })
+      } else if (event === 'SIGNED_OUT') {
         signOut()
       }
     })
