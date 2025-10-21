@@ -218,14 +218,9 @@ async function saveProfile() {
 
 // ---------- Init App ----------
 async function initApp() {
-  // Handle OAuth redirect (PKCE/Access Token)
-  if (window.location.hash.includes('access_token')) {
-    const { data, error } = await supabase.auth.exchangeCodeForSession(window.location.href)
-    if (error) console.error('Exchange error:', error.message)
-    window.location.hash = ''
-  }
+  const { data: { session }, error } = await supabase.auth.getSession()
+  if (error) console.error(error)
 
-  const { data: { session } } = await supabase.auth.getSession()
   if (session?.user) {
     currentUser = session.user
     await ensureUserProfile(currentUser)
@@ -244,6 +239,7 @@ async function initApp() {
   })
 }
 initApp()
+
 
 // ---------- UI Switch ----------
 function showApp() {
