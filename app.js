@@ -190,25 +190,28 @@ async function saveProfile() {
   await loadUsers()
 }
 
-// Handle auth changes
-supabase.auth.onAuthStateChange(async (event, session) => {
+// ------------------------
+// Auth state handling
+// ------------------------
+supabase.auth.onAuthStateChange((event, session) => {
   if (event === 'SIGNED_IN' && session?.user) {
     currentUser = session.user
-    await ensureUserProfile(currentUser)
-    authDiv.classList.add('hidden')
-    appDiv.classList.remove('hidden')
-    profileName.value = currentUser.user_metadata.full_name || currentUser.email
-    currentAvatar.src = currentUser.user_metadata.avatar_url || './default-avatar.png'
-    await loadUsers()
+    ensureUserProfile(currentUser).then(() => {
+      authDiv.classList.add('hidden')
+      appDiv.classList.remove('hidden')
+      profileName.value = currentUser.user_metadata.full_name || currentUser.email
+      currentAvatar.src = currentUser.user_metadata.avatar_url || './default-avatar.png'
+      loadUsers()
+    })
   }
 
   if (event === 'SIGNED_OUT') signOut()
 })
 
-
-// Initialize session
-(async function init() {
-  // Get the current session
+// ------------------------
+// Init
+// ------------------------
+;(async function init() {
   const { data: { session }, error } = await supabase.auth.getSession()
   if (error) return console.error(error.message)
 
@@ -220,6 +223,8 @@ supabase.auth.onAuthStateChange(async (event, session) => {
     profileName.value = currentUser.user_metadata.full_name || currentUser.email
     currentAvatar.src = currentUser.user_metadata.avatar_url || './default-avatar.png'
     await loadUsers()
+  } else {
+    authDiv.classList.remove('hidden')
   }
 })()
 
