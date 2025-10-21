@@ -91,14 +91,21 @@ function selectUser(user) {
 async function sendMessage() {
   const text = messageInput.value.trim()
   if (!text || !currentUser?.id || !selectedUser?.id) return
+
   const { error } = await supabase.from('messages').insert([{
     sender_id: currentUser.id,
     receiver_id: selectedUser.id,
     content: text
   }])
-  if (error) console.error("Send message error:", error.message)
-  else messageInput.value = ''
+
+  if (error) {
+    console.error("Send message error:", error.message)
+  } else {
+    messageInput.value = ''
+    await loadMessages() // <- reload messages immediately
+  }
 }
+
 
 // Load messages between current user and selected user
 async function loadMessages() {
@@ -198,10 +205,13 @@ supabase.auth.onAuthStateChange(async (event, session) => {
   if (event === 'SIGNED_OUT') signOut()
 })
 
-// Initialize
-;(async function init() {
-  const { data } = await supabase.auth.getSession()
-  const session = data?.session
+
+// Initialize session
+(async function init() {
+  // Get the current session
+  const { data: { session }, error } = await supabase.auth.getSession()
+  if (error) return console.error(error.message)
+
   if (session?.user) {
     currentUser = session.user
     await ensureUserProfile(currentUser)
@@ -212,3 +222,4 @@ supabase.auth.onAuthStateChange(async (event, session) => {
     await loadUsers()
   }
 })()
+
