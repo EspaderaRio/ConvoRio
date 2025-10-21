@@ -42,14 +42,29 @@ async function signIn() {
   })
 }
 
-// Sign out
 async function signOut() {
-  await supabase.auth.signOut()
+  const { error } = await supabase.auth.signOut()
+  if (error) {
+    console.error("Sign out error:", error.message)
+    return
+  }
+
+  // Clear user state
   currentUser = null
   selectedUser = null
+
+  // Reset UI
   appDiv.classList.add('hidden')
   authDiv.classList.remove('hidden')
+  chatDiv.classList.add('hidden')
+  profileDiv.classList.add('hidden')
+  messageBox.classList.add('hidden')
+  userList.innerHTML = ''
+  messagesDiv.innerHTML = ''
+  profileName.value = ''
+  currentAvatar.src = './default-avatar.png'
 }
+
 
 // Ensure user profile exists (upsert)
 async function ensureUserProfile(user) {
@@ -199,14 +214,15 @@ supabase.auth.onAuthStateChange((event, session) => {
     ensureUserProfile(currentUser).then(() => {
       authDiv.classList.add('hidden')
       appDiv.classList.remove('hidden')
+      profileDiv.classList.add('hidden')
+      chatDiv.classList.remove('hidden')
       profileName.value = currentUser.user_metadata.full_name || currentUser.email
       currentAvatar.src = currentUser.user_metadata.avatar_url || './default-avatar.png'
       loadUsers()
     })
   }
-
-  if (event === 'SIGNED_OUT') signOut()
 })
+
 
 // ------------------------
 // Init
