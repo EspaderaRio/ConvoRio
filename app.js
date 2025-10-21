@@ -5,13 +5,13 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.33.0'
 
 // ---------- Supabase Setup ----------
 const SUPABASE_URL = 'https://egusoznrqlddxpyqstqw.supabase.co'
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVndXNvem5ycWxkZHhweXFzdHF3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA0MTQyOTIsImV4cCI6MjA3NTk5MDI5Mn0.N4TwIWVzTWMpmLJD95-wFd3NseWKrqNFb8gOWXIuf-c' // Replace with your anon key
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVndXNvem5ycWxkZHhweXFzdHF3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA0MTQyOTIsImV4cCI6MjA3NTk5MDI5Mn0.N4TwIWVzTWMpmLJD95-wFd3NseWKrqNFb8gOWXIuf-c'
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
-    detectSessionInUrl: true, // ✅ Supabase automatically handles PKCE redirect
+    detectSessionInUrl: true,
   },
 })
 
@@ -33,7 +33,7 @@ const profileName = document.getElementById('profile-name')
 const profileAvatarInput = document.getElementById('profile-avatar')
 const currentAvatar = document.getElementById('current-avatar')
 
-// ---------- Tabs ----------
+// ---------- Tab Navigation ----------
 document.getElementById('tab-chat').onclick = () => {
   chatDiv.classList.remove('hidden')
   profileDiv.classList.add('hidden')
@@ -42,10 +42,6 @@ document.getElementById('tab-profile').onclick = () => {
   profileDiv.classList.remove('hidden')
   chatDiv.classList.add('hidden')
 }
-document.getElementById('sign-in-btn').onclick = () => {
-  chatDiv.classList.remove('hidden')
-  profileDiv.classList.add('hidden')
-}
 
 // ---------- Buttons ----------
 document.getElementById('sign-in-btn').onclick = signIn
@@ -53,17 +49,14 @@ document.getElementById('sign-out-btn').onclick = signOut
 document.getElementById('send-btn').onclick = sendMessage
 document.getElementById('save-profile-btn').onclick = saveProfile
 
-// ---------- Auth ----------
+// ---------- Auth Functions ----------
 async function signIn() {
-  // Avoid errors if already logged in
   const { data: session } = await supabase.auth.getSession()
   if (session?.user) return console.log('Already logged in as', session.user.email)
 
   const { error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
-    options: {
-      redirectTo: window.location.origin + window.location.pathname
-    }
+    options: { redirectTo: window.location.href }
   })
   if (error) console.error('Sign-in error:', error.message)
 }
@@ -79,13 +72,12 @@ async function signOut() {
   showAuth()
 }
 
-// ---------- Helpers ----------
+// ---------- Helper Functions ----------
 function getAvatarUrl(user) {
   if (!user) return './default-avatar.png'
   return user.avatar_url || user.user_metadata?.avatar_url || './default-avatar.png'
 }
 
-// ---------- Profile ----------
 async function ensureUserProfile(user) {
   if (!user) return
   const { error } = await supabase
@@ -99,7 +91,7 @@ async function ensureUserProfile(user) {
   if (error) console.error('Profile upsert error:', error.message)
 }
 
-// ---------- Users ----------
+// ---------- Load Users ----------
 async function loadUsers() {
   if (!currentUser?.id) return
   const { data, error } = await supabase
@@ -120,7 +112,7 @@ async function loadUsers() {
   })
 }
 
-// ---------- Chat ----------
+// ---------- Chat Functions ----------
 function selectUser(user) {
   selectedUser = user
   chatWith.textContent = `Chatting with ${user.name || user.email}`
@@ -238,12 +230,10 @@ function cleanUrl() {
     history.replaceState(null, '', window.location.pathname)
   }
 }
-
 document.addEventListener('DOMContentLoaded', cleanUrl)
 
-// ---------- Init ----------
+// ---------- Init App ----------
 async function initApp() {
-  // Get current session
   const { data: { session }, error } = await supabase.auth.getSession()
   if (error) console.error('Session error:', error)
 
@@ -255,7 +245,6 @@ async function initApp() {
     showAuth()
   }
 
-  // Listen to auth state changes
   supabase.auth.onAuthStateChange((_event, session) => {
     if (session?.user) {
       currentUser = session.user
@@ -266,7 +255,6 @@ async function initApp() {
     }
   })
 }
-
 initApp()
 
 // ---------- UI ----------
