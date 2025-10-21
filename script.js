@@ -28,11 +28,15 @@ document.getElementById("send-btn").onclick = sendMessage;
 // ✅ Sign in with Google
 async function signIn() {
   await supabase.auth.signInWithOAuth({
-    provider: "google",
-    options: {
-      redirectTo: window.location.href,
-    },
-  });
+  provider: 'google',
+  options: {
+    redirectTo: 'https://espaderario.github.io/ConvoRio/',
+    queryParams: {
+      access_type: 'offline',
+      prompt: 'consent'
+    }
+  }
+});
 }
 
 // ✅ Sign out
