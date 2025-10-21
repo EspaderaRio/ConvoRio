@@ -62,7 +62,23 @@ async function signOut() {
   userList.innerHTML = ''
   messagesDiv.innerHTML = ''
   profileName.value = ''
-  currentAvatar.src = './default-avatar.png'
+  currentAvatar.src = getAvatarUrl(currentUser);
+}
+
+// Safely get a user's avatar URL
+function getAvatarUrl(user) {
+  if (!user) return './default-avatar.png';
+
+  // If avatar_url exists and is a string, use it
+  if (user.avatar_url && typeof user.avatar_url === 'string') return user.avatar_url;
+
+  // If using Supabase metadata for logged-in user
+  if (user.user_metadata?.avatar_url && typeof user.user_metadata.avatar_url === 'string') {
+    return user.user_metadata.avatar_url;
+  }
+
+  // Fallback to default
+  return './default-avatar.png';
 }
 
 
@@ -146,7 +162,7 @@ const { data, error } = await supabase
 
     const avatar = document.createElement('img')
     avatar.classList.add('avatar')
-    avatar.src = msg.sender.avatar_url || './default-avatar.png'
+    avatar.src = getAvatarUrl(msg.sender);
 
     const textDiv = document.createElement('div')
     textDiv.classList.add('text')
@@ -180,19 +196,24 @@ supabase.channel('messages-channel').on(
 async function saveProfile() {
   if (!currentUser?.id) return
 
-  let avatarUrl = currentUser.user_metadata.avatar_url || './default-avatar.png'
+  let avatarUrl = currentAvatar.src
 
-  if (profileAvatarInput.files.length > 0) {
-    const file = profileAvatarInput.files[0]
-    const ext = file.name.split('.').pop()
-    const path = `${currentUser.id}.${ext}`
+if (profileAvatarInput.files.length > 0) {
+  const file = profileAvatarInput.files[0];
+  const ext = file.name.split('.').pop();
+  const path = `${currentUser.id}.${ext}`;
 
-    // Upload to storage
-    const { error: uploadError } = await supabase.storage.from('avatars').upload(path, file, { upsert: true })
-    if (uploadError) return console.error("Avatar upload error:", uploadError.message)
+  // Upload file to Supabase Storage
+  const { error: uploadError } = await supabase
+    .storage.from('avatars')
+    .upload(path, file, { upsert: true });
 
-    avatarUrl = supabase.storage.from('avatars').getPublicUrl(path).publicUrl
-  }
+  if (uploadError) return console.error("Avatar upload error:", uploadError.message);
+
+  // Get public URL safely
+  const { data } = supabase.storage.from('avatars').getPublicUrl(path);
+  avatarUrl = data?.publicUrl || './default-avatar.png';
+}
 
   const { error } = await supabase.from('profiles').update({
     name: profileName.value,
