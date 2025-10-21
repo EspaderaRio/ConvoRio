@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Supabase Chat</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="app">
+    <header>
+      <h1>Supabase Chat</h1>
+      <div id="auth-area">
+        <!-- auth UI injected by JS -->
+      </div>
+    </header>
+
+    <main>
+      <aside id="sidebar">
+        <section class="me">
+          <div id="my-info">Not signed in</div>
+        </section>
+
+        <section class="controls">
+          <button id="refresh-users">Refresh users</button>
+        </section>
+
+        <section id="users-list">
+          <!-- list of other users -->
+        </section>
+      </aside>
+
+      <section id="chat">
+        <div id="chat-header">
+          <div id="chat-with">Select a user to chat</div>
+        </div>
+
+        <div id="messages" aria-live="polite">
+          <!-- messages appear here -->
+        </div>
+
+        <form id="composer" class="hidden">
+          <input id="message-input" type="text" placeholder="Type a message..." autocomplete="off" />
+          <input id="file-input" type="file" accept="image/*" />
+          <button type="submit">Send</button>
+        </form>
+      </section>
+    </main>
+
+    <footer>
+      Built with ❤️ & Supabase
+    </footer>
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
