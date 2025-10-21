@@ -259,8 +259,10 @@ initApp()
 
 // ---------- UI ----------
 function showApp() {
-  authDiv.classList.add('hidden')
-  appDiv.classList.remove('hidden')
+  authDiv.classList.add('hidden')     // Hide auth screen
+  appDiv.classList.remove('hidden')   // Show main app
+  document.getElementById('sign-in-btn').classList.add('hidden') // Hide Sign In button
+  document.getElementById('sign-out-btn').classList.remove('hidden') // Show Sign Out button
   profileName.value = currentUser.user_metadata.full_name || currentUser.email
   currentAvatar.src = getAvatarUrl(currentUser)
   loadUsers()
@@ -269,4 +271,8 @@ function showApp() {
 function showAuth() {
   appDiv.classList.add('hidden')
   authDiv.classList.remove('hidden')
+  chatDiv.classList.add('hidden')
+  profileDiv.classList.add('hidden')
+  document.getElementById('sign-in-btn').classList.remove('hidden')
+  document.getElementById('sign-out-btn').classList.add('hidden')
 }
