@@ -1,57 +1,33 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Supabase Chat</title>
-  <link rel="stylesheet" href="styles.css" />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ConvoRio</title>
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div id="app">
-    <header>
-      <h1>Supabase Chat</h1>
-      <div id="auth-area">
-        <!-- auth UI injected by JS -->
-      </div>
-    </header>
-
-    <main>
-      <aside id="sidebar">
-        <section class="me">
-          <div id="my-info">Not signed in</div>
-        </section>
-
-        <section class="controls">
-          <button id="refresh-users">Refresh users</button>
-        </section>
-
-        <section id="users-list">
-          <!-- list of other users -->
-        </section>
-      </aside>
-
-      <section id="chat">
-        <div id="chat-header">
-          <div id="chat-with">Select a user to chat</div>
-        </div>
-
-        <div id="messages" aria-live="polite">
-          <!-- messages appear here -->
-        </div>
-
-        <form id="composer" class="hidden">
-          <input id="message-input" type="text" placeholder="Type a message..." autocomplete="off" />
-          <input id="file-input" type="file" accept="image/*" />
-          <button type="submit">Send</button>
-        </form>
-      </section>
-    </main>
-
-    <footer>
-      Built with ❤️ & Supabase
-    </footer>
+  <div id="auth">
+    <h2>Welcome to ConvoRio 💬</h2>
+    <button id="sign-in-btn">Sign in with Google</button>
   </div>
 
-  <script type="module" src="app.js"></script>
+  <div id="chat" class="hidden">
+    <div class="sidebar">
+      <h3>Users</h3>
+      <ul id="user-list"></ul>
+      <button id="sign-out-btn">Sign Out</button>
+    </div>
+    <div class="main">
+      <h3 id="chat-with">Select a user to start chatting</h3>
+      <div id="messages"></div>
+      <div id="message-box" class="hidden">
+        <input type="text" id="message-input" placeholder="Type a message..." />
+        <button id="send-btn">Send</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="script.js"></script>
 </body>
 </html>
