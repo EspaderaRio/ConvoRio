@@ -5,21 +5,22 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.33.0'
 
 // ---------- Supabase Setup ----------
 const SUPABASE_URL = 'https://egusoznrqlddxpyqstqw.supabase.co'
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVndXNvem5ycWxkZHhweXFzdHF3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA0MTQyOTIsImV4cCI6MjA3NTk5MDI5Mn0.N4TwIWVzTWMpmLJD95-wFd3NseWKrqNFb8gOWXIuf-c'
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVndXNvem5ycWxkZHhweXFzdHF3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA0MTQyOTIsImV4cCI6MjA3NTk5MDI5Mn0.N4TwIWVzTWMpmLJD95-wFd3NseWKrqNFb8gOWXIuf-c' // replace with your anon key
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
-    detectSessionInUrl: true,
+    detectSessionInUrl: true, // handle PKCE redirect
   },
 })
 
+// ---------- Global Variables ----------
 let currentUser = null
 let selectedUser = null
 let messageChannel = null
 
-// ---------- Elements ----------
+// ---------- DOM Elements ----------
 const authDiv = document.getElementById('auth')
 const appDiv = document.getElementById('app')
 const chatDiv = document.getElementById('chat')
@@ -33,7 +34,7 @@ const profileName = document.getElementById('profile-name')
 const profileAvatarInput = document.getElementById('profile-avatar')
 const currentAvatar = document.getElementById('current-avatar')
 
-// ---------- Tab Navigation ----------
+// ---------- Tabs ----------
 document.getElementById('tab-chat').onclick = () => {
   chatDiv.classList.remove('hidden')
   profileDiv.classList.add('hidden')
@@ -49,14 +50,14 @@ document.getElementById('sign-out-btn').onclick = signOut
 document.getElementById('send-btn').onclick = sendMessage
 document.getElementById('save-profile-btn').onclick = saveProfile
 
-// ---------- Auth Functions ----------
+// ---------- Auth ----------
 async function signIn() {
   const { data: session } = await supabase.auth.getSession()
   if (session?.user) return console.log('Already logged in as', session.user.email)
 
   const { error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
-    options: { redirectTo: window.location.href }
+    options: { redirectTo: window.location.origin + window.location.pathname }
   })
   if (error) console.error('Sign-in error:', error.message)
 }
@@ -72,22 +73,21 @@ async function signOut() {
   showAuth()
 }
 
-// ---------- Helper Functions ----------
+// ---------- Helpers ----------
 function getAvatarUrl(user) {
   if (!user) return './default-avatar.png'
   return user.avatar_url || user.user_metadata?.avatar_url || './default-avatar.png'
 }
 
+// ---------- Profile Handling ----------
 async function ensureUserProfile(user) {
   if (!user) return
-  const { error } = await supabase
-    .from('profiles')
-    .upsert({
-      id: user.id,
-      email: user.email,
-      name: user.user_metadata.full_name || user.email,
-      avatar_url: user.user_metadata.avatar_url || null,
-    }, { onConflict: 'id' })
+  const { error } = await supabase.from('profiles').upsert({
+    id: user.id,
+    email: user.email,
+    name: user.user_metadata.full_name || user.email,
+    avatar_url: user.user_metadata.avatar_url || null,
+  }, { onConflict: 'id' })
   if (error) console.error('Profile upsert error:', error.message)
 }
 
@@ -224,27 +224,49 @@ async function saveProfile() {
   await loadUsers()
 }
 
-// ---------- Cleanup URL ----------
-function cleanUrl() {
-  if (window.location.hash.includes('access_token') || window.location.hash.includes('error')) {
-    history.replaceState(null, '', window.location.pathname)
-  }
+// ---------- UI Helpers ----------
+function showApp() {
+  authDiv.classList.add('hidden')
+  appDiv.classList.remove('hidden')
+  profileName.value = currentUser.user_metadata.full_name || currentUser.email
+  currentAvatar.src = getAvatarUrl(currentUser)
+  loadUsers()
 }
-document.addEventListener('DOMContentLoaded', cleanUrl)
+
+function showAuth() {
+  appDiv.classList.add('hidden')
+  authDiv.classList.remove('hidden')
+}
 
 // ---------- Init App ----------
 async function initApp() {
-  const { data: { session }, error } = await supabase.auth.getSession()
-  if (error) console.error('Session error:', error)
-
-  if (session?.user) {
-    currentUser = session.user
-    await ensureUserProfile(currentUser)
-    showApp()
-  } else {
-    showAuth()
+  // 1️⃣ Handle OAuth redirect (PKCE)
+  if (window.location.hash.includes('access_token') || window.location.hash.includes('refresh_token')) {
+    try {
+      const { data, error } = await supabase.auth.getSessionFromUrl({ storeSession: true })
+      if (error) throw error
+      currentUser = data.session?.user || null
+      if (currentUser) await ensureUserProfile(currentUser)
+    } catch (err) {
+      console.error('Exchange error:', err.message)
+    } finally {
+      history.replaceState(null, '', window.location.pathname)
+    }
   }
 
+  // 2️⃣ Get session for returning users
+  if (!currentUser) {
+    const { data: { session }, error } = await supabase.auth.getSession()
+    if (error) console.error('Session error:', error)
+    currentUser = session?.user || null
+    if (currentUser) await ensureUserProfile(currentUser)
+  }
+
+  // 3️⃣ Show appropriate UI
+  if (currentUser) showApp()
+  else showAuth()
+
+  // 4️⃣ Listen for auth state changes
   supabase.auth.onAuthStateChange((_event, session) => {
     if (session?.user) {
       currentUser = session.user
@@ -255,24 +277,5 @@ async function initApp() {
     }
   })
 }
+
 initApp()
-
-// ---------- UI ----------
-function showApp() {
-  authDiv.classList.add('hidden')     // Hide auth screen
-  appDiv.classList.remove('hidden')   // Show main app
-  document.getElementById('sign-in-btn').classList.add('hidden') // Hide Sign In button
-  document.getElementById('sign-out-btn').classList.remove('hidden') // Show Sign Out button
-  profileName.value = currentUser.user_metadata.full_name || currentUser.email
-  currentAvatar.src = getAvatarUrl(currentUser)
-  loadUsers()
-}
-
-function showAuth() {
-  appDiv.classList.add('hidden')
-  authDiv.classList.remove('hidden')
-  chatDiv.classList.add('hidden')
-  profileDiv.classList.add('hidden')
-  document.getElementById('sign-in-btn').classList.remove('hidden')
-  document.getElementById('sign-out-btn').classList.add('hidden')
-}
