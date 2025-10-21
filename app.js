@@ -100,8 +100,9 @@ async function signInWithGoogle() {
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
-      redirectTo: window.location.origin // returns here after Google login
-    }
+  redirectTo: 'https://espaderario.github.io/ConvoRio/'
+}
+
   })
   if (error) alert('Google sign-in error: ' + error.message)
 }
