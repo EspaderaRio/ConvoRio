@@ -42,6 +42,10 @@ document.getElementById('tab-profile').onclick = () => {
   profileDiv.classList.remove('hidden')
   chatDiv.classList.add('hidden')
 }
+document.getElementById('sign-in-btn').onclick = () => {
+  chatDiv.classList.remove('hidden')
+  profileDiv.classList.add('hidden')
+}
 
 // ---------- Buttons ----------
 document.getElementById('sign-in-btn').onclick = signIn
