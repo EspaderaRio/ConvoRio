@@ -102,23 +102,25 @@ body {
   display: flex;
   justify-content: space-between;
   padding: 0.5rem;
+  margin-bottom: 0.5rem;
 }
 .mobile-toggle button {
   flex: 1;
   margin: 0 0.2rem;
   font-size: 0.9rem;
 }
-@media(min-width: 768px) {
-  .mobile-toggle { display: none; } /* hide toggle on desktop */
-}
 
 .chat-container {
-  display: flex;
-  height: 600px;
+  flex-direction: column;
+  height: auto;
+}
+.users-panel,
+.messages-panel {
+  width: 100%;
+  height: auto;
 }
 
 .users-panel {
-  width: 30%;
   background: var(--accent-light);
   padding: 1rem;
   border-right: 1px solid var(--border);
@@ -146,6 +148,7 @@ body {
   flex-direction: column;
   padding: 1rem;
   position: relative;
+  margin-top: 0.5rem;
 }
 
 .messages {
@@ -184,6 +187,16 @@ body {
 .timestamp {
   font-size: 0.7rem;
   color: var(--muted);
+}
+/* Panels hidden by default on mobile */
+.users-panel.hidden,
+.messages-panel.hidden {
+  display: none !important;
+}
+
+/* Message box hidden by default on mobile */
+.message-box.hidden {
+  display: none !important;
 }
 
 /* ========== MESSAGE BOX ========== */
@@ -231,4 +244,27 @@ body {
 /* ========== UTILITIES ========== */
 .hidden {
   display: none !important;
+}
+
+/* ========== DESKTOP ========== */
+@media(min-width: 768px) {
+  .chat-container {
+    flex-direction: row;
+    height: 600px;
+  }
+
+  .users-panel,
+  .messages-panel {
+    width: auto;
+    flex: 1;
+    display: block !important;
+  }
+
+  .message-box {
+    display: flex !important;
+  }
+
+  .mobile-toggle {
+    display: none;
+  }
 }
