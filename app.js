@@ -37,6 +37,8 @@ const profileAvatarInput = document.getElementById('profile-avatar')
 const currentAvatar = document.getElementById('current-avatar')
 const showUsersBtn = document.getElementById('show-users-btn')
 const showMessagesBtn = document.getElementById('show-messages-btn')
+const usersPanel = document.getElementById('user-list').parentElement
+const messagesPanel = document.getElementById('messages').parentElement
 
 // Track current view: 'users' or 'messages'
 let mobileView = 'messages'
@@ -44,33 +46,27 @@ let mobileView = 'messages'
 function updateMobileView() {
   if (window.innerWidth < 768) {
     if (mobileView === 'users') {
-      userList.parentElement.classList.remove('hidden')
-      messagesDiv.parentElement.classList.add('hidden')
+      usersPanel.classList.remove('hidden')
+      messagesPanel.classList.add('hidden')
       messageBox.classList.add('hidden')
     } else {
-      userList.parentElement.classList.add('hidden')
-      messagesDiv.parentElement.classList.remove('hidden')
+      usersPanel.classList.add('hidden')
+      messagesPanel.classList.remove('hidden')
       messageBox.classList.remove('hidden')
     }
   } else {
     // Desktop: show both
-    userList.parentElement.classList.remove('hidden')
-    messagesDiv.parentElement.classList.remove('hidden')
+    usersPanel.classList.remove('hidden')
+    messagesPanel.classList.remove('hidden')
     messageBox.classList.remove('hidden')
   }
 }
 
-showUsersBtn.onclick = () => {
-  mobileView = 'users'
-  updateMobileView()
-}
+// Button events
+showUsersBtn.onclick = () => { mobileView = 'users'; updateMobileView() }
+showMessagesBtn.onclick = () => { mobileView = 'messages'; updateMobileView() }
 
-showMessagesBtn.onclick = () => {
-  mobileView = 'messages'
-  updateMobileView()
-}
-
-// Update on resize
+// Update on window resize
 window.addEventListener('resize', updateMobileView)
 updateMobileView()
 
@@ -163,7 +159,14 @@ function selectUser(user) {
   messagesDiv.innerHTML = ''
   loadMessages()
   subscribeToMessages()
+
+  // Automatically switch to messages panel on mobile
+  if (window.innerWidth < 768) {
+    mobileView = 'messages'
+    updateMobileView()
+  }
 }
+
 
 async function sendMessage() {
   const text = messageInput.value.trim()
