@@ -5,22 +5,24 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.33.0'
 
 // ---------- Supabase Setup ----------
 const SUPABASE_URL = 'https://egusoznrqlddxpyqstqw.supabase.co'
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVndXNvem5ycWxkZHhweXFzdHF3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA0MTQyOTIsImV4cCI6MjA3NTk5MDI5Mn0.N4TwIWVzTWMpmLJD95-wFd3NseWKrqNFb8gOWXIuf-c' // replace with your anon key
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVndXNvem5ycWxkZHhweXFzdHF3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA0MTQyOTIsImV4cCI6MjA3NTk5MDI5Mn0.N4TwIWVzTWMpmLJD95-wFd3NseWKrqNFb8gOWXIuf-c'
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
-    detectSessionInUrl: true, // handle PKCE redirect
+    detectSessionInUrl: true,
   },
 })
 
-// ---------- Global Variables ----------
+// ---------- Globals ----------
 let currentUser = null
 let selectedUser = null
 let messageChannel = null
+let incomingChannel = null
+const seenMessageIds = new Set()
 
-// ---------- DOM Elements ----------
+// ---------- DOM ----------
 const authDiv = document.getElementById('auth')
 const appDiv = document.getElementById('app')
 const chatDiv = document.getElementById('chat')
@@ -34,7 +36,7 @@ const profileName = document.getElementById('profile-name')
 const profileAvatarInput = document.getElementById('profile-avatar')
 const currentAvatar = document.getElementById('current-avatar')
 
-// ---------- Tabs ----------
+// ---------- UI Tabs ----------
 document.getElementById('tab-chat').onclick = () => {
   chatDiv.classList.remove('hidden')
   profileDiv.classList.add('hidden')
@@ -66,10 +68,7 @@ async function signOut() {
   await supabase.auth.signOut()
   currentUser = null
   selectedUser = null
-  if (messageChannel) {
-    supabase.removeChannel(messageChannel)
-    messageChannel = null
-  }
+  cleanupRealtime()
   showAuth()
 }
 
@@ -79,7 +78,12 @@ function getAvatarUrl(user) {
   return user.avatar_url || user.user_metadata?.avatar_url || './default-avatar.png'
 }
 
-// ---------- Profile Handling ----------
+function cleanupRealtime() {
+  if (messageChannel) { supabase.removeChannel(messageChannel); messageChannel = null }
+  if (incomingChannel) { supabase.removeChannel(incomingChannel); incomingChannel = null }
+}
+
+// ---------- Profiles ----------
 async function ensureUserProfile(user) {
   if (!user) return
   const { error } = await supabase.from('profiles').upsert({
@@ -91,7 +95,7 @@ async function ensureUserProfile(user) {
   if (error) console.error('Profile upsert error:', error.message)
 }
 
-// ---------- Load Users ----------
+// ---------- Users ----------
 async function loadUsers() {
   if (!currentUser?.id) return
   const { data, error } = await supabase
@@ -112,7 +116,7 @@ async function loadUsers() {
   })
 }
 
-// ---------- Chat Functions ----------
+// ---------- Chat ----------
 function selectUser(user) {
   selectedUser = user
   chatWith.textContent = `Chatting with ${user.name || user.email}`
@@ -126,14 +130,23 @@ async function sendMessage() {
   const text = messageInput.value.trim()
   if (!text || !currentUser?.id || !selectedUser?.id) return
 
-  const { error } = await supabase.from('messages').insert([{
-    sender_id: currentUser.id,
-    sender_avatar: getAvatarUrl(currentUser),
-    receiver_id: selectedUser.id,
-    content: text,
-  }])
-  if (error) console.error('Send message error:', error.message)
-  else messageInput.value = ''
+  const { data, error } = await supabase.from('messages')
+    .insert([{
+      sender_id: currentUser.id,
+      sender_avatar: getAvatarUrl(currentUser),
+      receiver_id: selectedUser.id,
+      content: text,
+    }])
+    .select()
+
+  if (error) return console.error('Send message error:', error.message)
+
+  const inserted = data?.[0]
+  if (inserted) {
+    seenMessageIds.add(inserted.id)
+    appendMessage(inserted)
+    messageInput.value = ''
+  }
 }
 
 async function loadMessages() {
@@ -148,7 +161,6 @@ async function loadMessages() {
 
   messagesDiv.innerHTML = ''
   if (error) return console.error('Load messages error:', error.message)
-
   data.forEach(appendMessage)
   messagesDiv.scrollTop = messagesDiv.scrollHeight
 }
@@ -176,7 +188,7 @@ function appendMessage(msg) {
   messagesDiv.scrollTop = messagesDiv.scrollHeight
 }
 
-// ---------- Real-Time Subscription ----------
+// ---------- Real-time ----------
 function subscribeToMessages() {
   if (messageChannel) {
     supabase.removeChannel(messageChannel)
@@ -186,31 +198,63 @@ function subscribeToMessages() {
 
   messageChannel = supabase
     .channel(`chat-${currentUser.id}-${selectedUser.id}`)
-    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
-      const msg = payload.new
-      if ((msg.sender_id === currentUser.id && msg.receiver_id === selectedUser.id) ||
-          (msg.sender_id === selectedUser.id && msg.receiver_id === currentUser.id)) {
-        appendMessage(msg)
-      }
-    }).subscribe()
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' },
+      payload => {
+        const msg = payload.new
+        const valid =
+          (msg.sender_id === currentUser.id && msg.receiver_id === selectedUser.id) ||
+          (msg.sender_id === selectedUser.id && msg.receiver_id === currentUser.id)
+        if (valid && !seenMessageIds.has(msg.id)) {
+          seenMessageIds.add(msg.id)
+          appendMessage(msg)
+        }
+      })
+    .subscribe()
 }
 
-// ---------- Profile Update ----------
+function subscribeToIncomingMessagesForMe() {
+  if (incomingChannel) {
+    supabase.removeChannel(incomingChannel)
+    incomingChannel = null
+  }
+  if (!currentUser?.id) return
+
+  incomingChannel = supabase
+    .channel(`inbox-${currentUser.id}`)
+    .on('postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'messages',
+        filter: `receiver_id=eq.${currentUser.id}`
+      },
+      payload => {
+        const msg = payload.new
+        if (selectedUser && msg.sender_id === selectedUser.id) {
+          if (!seenMessageIds.has(msg.id)) {
+            seenMessageIds.add(msg.id)
+            appendMessage(msg)
+          }
+        } else {
+          console.log('💬 New message from', msg.sender_id)
+        }
+      })
+    .subscribe()
+}
+
+// ---------- Profile ----------
 async function saveProfile() {
   if (!currentUser?.id) return
 
   let avatarUrl = getAvatarUrl(currentUser)
-
   if (profileAvatarInput.files.length > 0) {
     const file = profileAvatarInput.files[0]
     const ext = file.name.split('.').pop()
     const path = `${currentUser.id}.${ext}`
-
     const { error: uploadError } = await supabase.storage
       .from('avatars')
       .upload(path, file, { upsert: true })
     if (uploadError) return console.error('Avatar upload error:', uploadError.message)
-
     const { data } = supabase.storage.from('avatars').getPublicUrl(path)
     avatarUrl = data?.publicUrl || './default-avatar.png'
   }
@@ -219,18 +263,19 @@ async function saveProfile() {
     .update({ name: profileName.value, avatar_url: avatarUrl })
     .eq('id', currentUser.id)
 
-  if (error) return console.error('Save profile error:', error.message)
+  if (error) console.error('Save profile error:', error.message)
   currentAvatar.src = avatarUrl
   await loadUsers()
 }
 
-// ---------- UI Helpers ----------
+// ---------- UI ----------
 function showApp() {
   authDiv.classList.add('hidden')
   appDiv.classList.remove('hidden')
   profileName.value = currentUser.user_metadata.full_name || currentUser.email
   currentAvatar.src = getAvatarUrl(currentUser)
   loadUsers()
+  subscribeToIncomingMessagesForMe()
 }
 
 function showAuth() {
@@ -238,44 +283,34 @@ function showAuth() {
   authDiv.classList.remove('hidden')
 }
 
-// ---------- Init App ----------
+// ---------- Init ----------
 async function initApp() {
-  try {
-    // 1️⃣ Supabase automatically handles PKCE redirects
-    const { data: { session }, error } = await supabase.auth.getSession();
-    if (error) console.error('Session error:', error);
+  const { data: { session }, error } = await supabase.auth.getSession()
+  if (error) console.error('Session error:', error)
 
-    // 2️⃣ If a session exists, show app, otherwise show sign-in
+  if (session?.user) {
+    currentUser = session.user
+    await ensureUserProfile(currentUser)
+    showApp()
+  } else {
+    showAuth()
+  }
+
+  supabase.auth.onAuthStateChange(async (_event, session) => {
     if (session?.user) {
-      currentUser = session.user;
-      await ensureUserProfile(currentUser);
-      showApp();
+      currentUser = session.user
+      await ensureUserProfile(currentUser)
+      showApp()
     } else {
-      showAuth();
+      currentUser = null
+      showAuth()
+      cleanupRealtime()
     }
+  })
 
-    // 3️⃣ React to future login/logout automatically
-    supabase.auth.onAuthStateChange(async (event, session) => {
-      if (session?.user) {
-        currentUser = session.user;
-        await ensureUserProfile(currentUser);
-        showApp();
-      } else {
-        currentUser = null;
-        showAuth();
-      }
-    });
-
-    // 4️⃣ Clean up the URL after redirect (removes tokens)
-    if (
-      window.location.hash.includes('access_token') ||
-      window.location.hash.includes('refresh_token') ||
-      window.location.hash.includes('error')
-    ) {
-      history.replaceState(null, '', window.location.pathname);
-    }
-  } catch (err) {
-    console.error('Init error:', err.message);
+  // Clean up URL after redirect
+  if (window.location.hash.includes('access_token')) {
+    history.replaceState(null, '', window.location.pathname)
   }
 }
 
