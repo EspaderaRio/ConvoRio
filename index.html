@@ -30,29 +30,28 @@
 
 
     <main>
-          <div class="mobile-toggle">
-  <button id="show-users-btn" class="primary-btn">Users</button>
-  <button id="show-messages-btn" class="primary-btn">Chat</button>
-</div>
-
-      <!-- ===== Chat Section ===== -->
-      <section id="chat" class="chat-container">
-       <aside id="users-panel" class="users-panel">
-  <h3>Users</h3>
-  <ul id="user-list"></ul>
-</aside>
-
-<div id="messages-panel" class="messages-panel">
-  <h3 id="chat-with">Select a user to chat</h3>
-  <div id="messages" class="messages"></div>
-
-  <div id="message-box" class="message-box hidden">
-    <input id="message-input" type="text" placeholder="Type a message..." />
-    <button id="send-btn" class="send-btn">Send</button>
+         <div class="mobile-toggle">
+    <button id="show-users-btn" class="primary-btn">Users</button>
+    <button id="show-messages-btn" class="primary-btn">Chat</button>
   </div>
-</div>
 
-      </section>
+  <!-- Chat Section -->
+  <section id="chat" class="chat-container">
+    <aside class="users-panel">
+      <h3>Users</h3>
+      <ul id="user-list"></ul>
+    </aside>
+
+    <div class="messages-panel">
+      <h3 id="chat-with">Select a user to chat</h3>
+      <div id="messages" class="messages"></div>
+
+      <div id="message-box" class="message-box hidden">
+        <input id="message-input" type="text" placeholder="Type a message..." />
+        <button id="send-btn" class="send-btn">Send</button>
+      </div>
+    </div>
+  </section>
 
       <!-- ===== Profile Section ===== -->
       <section id="profile" class="hidden profile-container">
