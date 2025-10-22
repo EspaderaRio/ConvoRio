@@ -1,88 +1,220 @@
-/* Basic Reset */
-* { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: Arial, sans-serif; background: #f0f2f5; color: #333; }
+/* ==========================
+   🌈 ConvoRio Stylesheet
+   ========================== */
 
-/* Hidden helper */
-.hidden { display: none; }
+:root {
+  --bg: #f5f7fa;
+  --panel: #ffffff;
+  --accent: #2563eb;
+  --accent-light: #dbeafe;
+  --text: #111827;
+  --muted: #6b7280;
+  --border: #e5e7eb;
+  --shadow: rgba(0, 0, 0, 0.08);
+  --radius: 10px;
+}
 
-/* Auth */
+body {
+  font-family: 'Inter', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+}
+
+/* ========== AUTH ========== */
 .auth-container {
+  text-align: center;
+  width: 100%;
+  max-width: 400px;
+}
+
+.auth-card {
+  background: var(--panel);
+  padding: 2rem;
+  border-radius: var(--radius);
+  box-shadow: 0 4px 10px var(--shadow);
+}
+
+.primary-btn {
+  background: var(--accent);
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-weight: 600;
+  margin-top: 1rem;
+}
+.primary-btn:hover {
+  background: #1e40af;
+}
+
+/* ========== APP CONTAINER ========== */
+.app-container {
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  height: 100vh;
+  width: 100%;
+  max-width: 1000px;
+  background: var(--panel);
+  border-radius: var(--radius);
+  box-shadow: 0 4px 20px var(--shadow);
+  overflow: hidden;
 }
-.auth-container h2 { margin-bottom: 20px; }
-.auth-container button { padding: 10px 20px; font-size: 16px; cursor: pointer; }
 
-/* Tabs */
+/* HEADER */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1.25rem;
+  background: var(--accent);
+  color: white;
+}
 .tabs {
   display: flex;
-  justify-content: space-between;
-  background: #fff;
-  padding: 10px;
-  border-bottom: 1px solid #ccc;
+  gap: 0.5rem;
 }
-.tabs button { padding: 8px 15px; cursor: pointer; }
-.tabs .sign-out { background: #e74c3c; color: #fff; border: none; }
+.tab-btn,
+.signout-btn {
+  background: white;
+  color: var(--accent);
+  border: none;
+  padding: 0.4rem 0.9rem;
+  border-radius: var(--radius);
+  font-weight: 500;
+  cursor: pointer;
+}
+.tab-btn.active {
+  background: var(--accent-light);
+  color: var(--accent);
+}
+.signout-btn {
+  background: #ef4444;
+  color: white;
+}
 
-/* Chat */
-.chat-container { display: flex; height: calc(100vh - 50px); }
+/* ========== CHAT LAYOUT ========== */
+.chat-container {
+  display: flex;
+  height: 600px;
+}
+
 .users-panel {
-  width: 200px;
-  background: #fff;
-  border-right: 1px solid #ccc;
-  padding: 10px;
+  width: 30%;
+  background: var(--accent-light);
+  padding: 1rem;
+  border-right: 1px solid var(--border);
   overflow-y: auto;
 }
-.users-panel ul { list-style: none; }
-.users-panel li {
-  padding: 8px;
-  cursor: pointer;
-  border-bottom: 1px solid #eee;
+
+.users-panel ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
 }
-.users-panel li:hover { background: #f0f0f0; }
+.users-panel li {
+  padding: 0.6rem 0.8rem;
+  cursor: pointer;
+  border-radius: var(--radius);
+  transition: 0.2s;
+}
+.users-panel li:hover {
+  background: var(--panel);
+}
 
 .messages-panel {
   flex: 1;
   display: flex;
   flex-direction: column;
-  padding: 10px;
+  padding: 1rem;
+  position: relative;
 }
-.messages { flex: 1; overflow-y: auto; padding-right: 10px; margin-bottom: 10px; }
-.message-box { display: flex; gap: 5px; }
-.message-box input { flex: 1; padding: 8px; }
-.message-box button { padding: 8px 15px; cursor: pointer; }
 
-/* Messages */
-.message { display: flex; align-items: flex-end; margin-bottom: 10px; }
-.message.mine { justify-content: flex-end; }
-.message.theirs { justify-content: flex-start; }
+.messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.message {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+  max-width: 80%;
+}
+.message.mine {
+  align-self: flex-end;
+  flex-direction: row-reverse;
+}
 .message .avatar {
-  width: 35px;
-  height: 35px;
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
-  margin: 0 5px;
-  object-fit: cover;
 }
 .message .text {
-  background: #e1ffc7;
-  padding: 8px 12px;
-  border-radius: 15px;
-  max-width: 70%;
-  word-wrap: break-word;
+  background: var(--accent-light);
+  padding: 0.5rem 0.8rem;
+  border-radius: var(--radius);
 }
-.message.mine .text { background: #d2e1ff; }
-.message .timestamp {
-  font-size: 10px;
-  color: #666;
-  margin-left: 5px;
+.message.mine .text {
+  background: var(--accent);
+  color: white;
+}
+.timestamp {
+  font-size: 0.7rem;
+  color: var(--muted);
 }
 
-/* Profile */
-.profile-container { padding: 20px; max-width: 400px; }
-.profile-avatar img { width: 100px; height: 100px; border-radius: 50%; margin-bottom: 10px; object-fit: cover; }
-.profile-container input[type="text"] { width: 100%; padding: 8px; margin-bottom: 10px; }
-.profile-container input[type="file"] { margin-bottom: 10px; }
-.profile-container button { padding: 8px 15px; cursor: pointer; }
+/* ========== MESSAGE BOX ========== */
+.message-box {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+.message-box input {
+  flex: 1;
+  padding: 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.send-btn {
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: var(--radius);
+  padding: 0.6rem 1.2rem;
+  cursor: pointer;
+}
+.send-btn:hover {
+  background: #1e40af;
+}
+
+/* ========== PROFILE ========== */
+.profile-container {
+  padding: 2rem;
+  text-align: center;
+}
+.profile-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+.avatar-large {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+/* ========== UTILITIES ========== */
+.hidden {
+  display: none !important;
+}
