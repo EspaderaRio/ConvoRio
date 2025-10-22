@@ -35,6 +35,45 @@ const chatWith = document.getElementById('chat-with')
 const profileName = document.getElementById('profile-name')
 const profileAvatarInput = document.getElementById('profile-avatar')
 const currentAvatar = document.getElementById('current-avatar')
+const showUsersBtn = document.getElementById('show-users-btn')
+const showMessagesBtn = document.getElementById('show-messages-btn')
+
+// Track current view: 'users' or 'messages'
+let mobileView = 'messages'
+
+function updateMobileView() {
+  if (window.innerWidth < 768) {
+    if (mobileView === 'users') {
+      userList.parentElement.classList.remove('hidden')
+      messagesDiv.parentElement.classList.add('hidden')
+      messageBox.classList.add('hidden')
+    } else {
+      userList.parentElement.classList.add('hidden')
+      messagesDiv.parentElement.classList.remove('hidden')
+      messageBox.classList.remove('hidden')
+    }
+  } else {
+    // Desktop: show both
+    userList.parentElement.classList.remove('hidden')
+    messagesDiv.parentElement.classList.remove('hidden')
+    messageBox.classList.remove('hidden')
+  }
+}
+
+showUsersBtn.onclick = () => {
+  mobileView = 'users'
+  updateMobileView()
+}
+
+showMessagesBtn.onclick = () => {
+  mobileView = 'messages'
+  updateMobileView()
+}
+
+// Update on resize
+window.addEventListener('resize', updateMobileView)
+updateMobileView()
+
 
 // ---------- UI Tabs ----------
 document.getElementById('tab-chat').onclick = () => {
