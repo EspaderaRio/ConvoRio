@@ -192,7 +192,10 @@ async function loadMessages() {
   messagesDiv.innerHTML = ''
   if (error) return console.error('Load messages error:', error.message)
   data.forEach(appendMessage)
-  messagesDiv.scrollTop = messagesDiv.scrollHeight
+  messagesDiv.scrollTo({
+  top: messagesDiv.scrollHeight,
+  behavior: 'smooth'
+})
 }
 
 function appendMessage(msg) {
