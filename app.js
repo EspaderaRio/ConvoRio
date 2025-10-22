@@ -130,24 +130,45 @@ async function sendMessage() {
   const text = messageInput.value.trim()
   if (!text || !currentUser?.id || !selectedUser?.id) return
 
-  const { data, error } = await supabase.from('messages')
-    .insert([{
+  // --- 1️⃣ Show message immediately (optimistic render)
+  const tempMsg = {
+    id: 'temp-' + Date.now(),
+    sender_id: currentUser.id,
+    sender_avatar: getAvatarUrl(currentUser),
+    receiver_id: selectedUser.id,
+    content: text,
+    created_at: new Date().toISOString()
+  }
+  appendMessage(tempMsg)
+  seenMessageIds.add(tempMsg.id) // prevent duplicate on realtime
+  messageInput.value = ''
+
+  // --- 2️⃣ Send to Supabase in background
+  try {
+    const { data, error } = await supabase.from('messages').insert([{
       sender_id: currentUser.id,
       sender_avatar: getAvatarUrl(currentUser),
       receiver_id: selectedUser.id,
       content: text,
-    }])
-    .select()
+    }]).select()
 
-  if (error) return console.error('Send message error:', error.message)
+    if (error) throw error
 
-  const inserted = data?.[0]
-  if (inserted) {
-    seenMessageIds.add(inserted.id)
-    appendMessage(inserted)
-    messageInput.value = ''
+    // --- 3️⃣ Replace temp message with real one (optional)
+    const inserted = data?.[0]
+    if (inserted) {
+      seenMessageIds.add(inserted.id)
+      // remove the temp one and append real one for accurate timestamp
+      const tempDiv = [...messagesDiv.querySelectorAll('.message')]
+        .find(div => div.dataset.id === tempMsg.id)
+      if (tempDiv) tempDiv.remove()
+      appendMessage(inserted)
+    }
+  } catch (err) {
+    console.error('Send message error:', err.message)
   }
 }
+
 
 async function loadMessages() {
   if (!currentUser?.id || !selectedUser?.id) return
@@ -166,7 +187,8 @@ async function loadMessages() {
 }
 
 function appendMessage(msg) {
-  const msgDiv = document.createElement('div')
+   const msgDiv = document.createElement('div')
+  msgDiv.dataset.id = msg.id
   msgDiv.classList.add('message', msg.sender_id === currentUser.id ? 'mine' : 'theirs')
 
   const avatar = document.createElement('img')
