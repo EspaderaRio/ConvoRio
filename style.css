@@ -98,6 +98,20 @@ body {
 }
 
 /* ========== CHAT LAYOUT ========== */
+.mobile-toggle {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.5rem;
+}
+.mobile-toggle button {
+  flex: 1;
+  margin: 0 0.2rem;
+  font-size: 0.9rem;
+}
+@media(min-width: 768px) {
+  .mobile-toggle { display: none; } /* hide toggle on desktop */
+}
+
 .chat-container {
   display: flex;
   height: 600px;
