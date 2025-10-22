@@ -1,54 +1,63 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>ConvoRio</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css" />
+  <link rel="icon" href="favicon.png" type="image/png">
 </head>
 <body>
-  <!-- Authentication -->
+  <!-- ========== AUTH SECTION ========== -->
   <div id="auth" class="auth-container">
-    <h2>Welcome to ConvoRio</h2>
-    <button id="sign-in-btn">Sign in with Google</button>
+    <div class="auth-card">
+      <h1>Welcome to ConvoRio 💬</h1>
+      <p>Chat in real-time, share ideas, and stay connected.</p>
+      <button id="sign-in-btn" class="primary-btn">Sign in with Google</button>
+    </div>
   </div>
 
-  <!-- Main App -->
-  <div id="app" class="hidden">
-    <!-- Header / Tabs -->
-    <div class="tabs">
-      <button id="tab-chat">Chat</button>
-      <button id="tab-profile">Profile</button>
-      <button id="sign-out-btn" class="sign-out">Sign Out</button>
-    </div>
-
-    <!-- Chat Section -->
-    <div id="chat" class="hidden chat-container">
-      <div class="users-panel">
-        <h3>Users</h3>
-        <ul id="user-list"></ul>
+  <!-- ========== MAIN APP SECTION ========== -->
+  <div id="app" class="hidden app-container">
+    <header class="topbar">
+      <h2>ConvoRio</h2>
+      <div class="tabs">
+        <button id="tab-chat" class="tab-btn active">Chat</button>
+        <button id="tab-profile" class="tab-btn">Profile</button>
+        <button id="sign-out-btn" class="signout-btn">Sign Out</button>
       </div>
+    </header>
 
-      <div class="messages-panel">
-        <h3 id="chat-with">Select a user to chat</h3>
-        <div id="messages" class="messages"></div>
+    <main>
+      <!-- ===== Chat Section ===== -->
+      <section id="chat" class="chat-container">
+        <aside class="users-panel">
+          <h3>Users</h3>
+          <ul id="user-list"></ul>
+        </aside>
 
-        <div id="message-box" class="hidden message-box">
-          <input id="message-input" type="text" placeholder="Type a message..." />
-          <button id="send-btn">Send</button>
+        <div class="messages-panel">
+          <h3 id="chat-with">Select a user to chat</h3>
+          <div id="messages" class="messages"></div>
+
+          <div id="message-box" class="message-box hidden">
+            <input id="message-input" type="text" placeholder="Type a message..." />
+            <button id="send-btn" class="send-btn">Send</button>
+          </div>
         </div>
-      </div>
-    </div>
+      </section>
 
-    <!-- Profile Section -->
-    <div id="profile" class="hidden profile-container">
-      <h3>Edit Profile</h3>
-      <div class="profile-avatar">
-        <img id="current-avatar" src="./default-avatar.png" alt="Avatar">
-      </div>
-      <input id="profile-name" type="text" placeholder="Your name" />
-      <input id="profile-avatar" type="file" accept="image/*" />
-      <button id="save-profile-btn">Save Profile</button>
-    </div>
+      <!-- ===== Profile Section ===== -->
+      <section id="profile" class="hidden profile-container">
+        <h3>Your Profile</h3>
+        <div class="profile-card">
+          <img id="current-avatar" class="avatar-large" src="./default-avatar.png" alt="Avatar" />
+          <input id="profile-name" type="text" placeholder="Your name" />
+          <input id="profile-avatar" type="file" accept="image/*" />
+          <button id="save-profile-btn" class="primary-btn">Save Profile</button>
+        </div>
+      </section>
+    </main>
   </div>
 
   <script type="module" src="app.js"></script>
