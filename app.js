@@ -110,16 +110,17 @@ async function loadUsers() {
   if (error) return console.error('Load users error:', error.message)
   if (!data.length) return (userList.innerHTML = '<li>No other users</li>')
 
-  data.forEach(u => {
-    const li = document.createElement('li')
-    li.textContent = u.name || u.email
-    li.onclick = () => {
-  selectUser(u)
-  li.classList.remove('new-message') // clear highlight
-}
-    userList.appendChild(li)
-  })
-
+ data.forEach(u => {
+  const li = document.createElement('li')
+  li.textContent = u.name || u.email
+  li.dataset.userId = u.id
+  li.onclick = () => {
+    selectUser(u)
+    li.classList.remove('new-message')
+  }
+  userList.appendChild(li)
+})
+  
   // Auto-select first user on desktop
   if (window.innerWidth >= 768 && data.length) selectUser(data[0])
 }
@@ -236,14 +237,29 @@ function subscribeToChat() {
   chatChannel = supabase.channel(`chat-${currentUser.id}`)
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
       const msg = payload.new
-      const relevant =
+      const isFromOrToSelected =
         (msg.sender_id === currentUser.id && msg.receiver_id === selectedUser?.id) ||
-        (msg.receiver_id === currentUser.id && msg.sender_id === selectedUser?.id) ||
-        (window.innerWidth >= 768) // desktop: always show
-      if (relevant) appendMessage(msg)
+        (msg.receiver_id === currentUser.id && msg.sender_id === selectedUser?.id)
+
+      const isDesktop = window.innerWidth >= 768
+
+      if (!seenMessageIds.has(msg.id)) {
+        seenMessageIds.add(msg.id)
+
+        if (isFromOrToSelected || isDesktop) {
+          appendMessage(msg)
+        }
+
+        // Highlight new message for mobile if sender != selectedUser
+        if (window.innerWidth < 768 && msg.sender_id !== selectedUser?.id) {
+          const li = [...userList.children].find(li => li.dataset.userId === msg.sender_id)
+          if (li) li.classList.add('new-message')
+        }
+      }
     })
     .subscribe()
 }
+
 
 // ---------- Profile ----------
 async function saveProfile() {
