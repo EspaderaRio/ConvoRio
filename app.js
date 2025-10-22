@@ -149,7 +149,13 @@ async function loadUsers() {
     li.onclick = () => selectUser(u)
     userList.appendChild(li)
   })
+
+  // Auto-select first user on desktop
+  if (window.innerWidth >= 768 && data.length) {
+    selectUser(data[0])
+  }
 }
+
 
 // ---------- Chat ----------
 function selectUser(user) {
@@ -283,27 +289,26 @@ function subscribeToIncomingMessagesForMe() {
   }
   if (!currentUser?.id) return
 
-  incomingChannel = supabase
-    .channel(`inbox-${currentUser.id}`)
-    .on('postgres_changes',
-      {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'messages',
-        filter: `receiver_id=eq.${currentUser.id}`
-      },
-      payload => {
-        const msg = payload.new
-        if (selectedUser && msg.sender_id === selectedUser.id) {
-          if (!seenMessageIds.has(msg.id)) {
-            seenMessageIds.add(msg.id)
-            appendMessage(msg)
-          }
-        } else {
-          console.log('💬 New message from', msg.sender_id)
-        }
-      })
-    .subscribe()
+ incomingChannel = supabase
+  .channel(`inbox-${currentUser.id}`)
+  .on('postgres_changes', {
+      event: 'INSERT',
+      schema: 'public',
+      table: 'messages',
+      filter: `receiver_id=eq.${currentUser.id}`
+    },
+    payload => {
+      const msg = payload.new
+      // Only append if relevant conversation OR desktop with both panels visible
+      const isCurrentChat = selectedUser && msg.sender_id === selectedUser.id
+      const isDesktop = window.innerWidth >= 768
+
+      if ((isCurrentChat || isDesktop) && !seenMessageIds.has(msg.id)) {
+        seenMessageIds.add(msg.id)
+        appendMessage(msg)
+      }
+    })
+  .subscribe()
 }
 
 // ---------- Profile ----------
