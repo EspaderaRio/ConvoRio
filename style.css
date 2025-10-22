@@ -103,7 +103,9 @@ body {
   flex-direction: column;
   gap: 8px;
   background: #fafafa;
+  scroll-behavior: smooth; /* <-- Smooth scrolling */
 }
+
 .message {
   display: flex;
   align-items: flex-end;
