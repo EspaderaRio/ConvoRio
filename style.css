@@ -98,6 +98,11 @@ body {
 }
 
 /* ========== CHAT LAYOUT ========== */
+
+.users-panel, .messages-panel {
+  transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
 .mobile-toggle {
   display: flex;
   justify-content: space-between;
@@ -141,6 +146,11 @@ body {
 .users-panel li:hover {
   background: var(--panel);
 }
+.user-list li.new-message {
+  font-weight: bold;
+  color: #2563eb;
+}
+
 
 .messages-panel {
   flex: 1;
