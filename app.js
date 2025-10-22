@@ -110,17 +110,17 @@ async function loadUsers() {
   if (error) return console.error('Load users error:', error.message)
   if (!data.length) return (userList.innerHTML = '<li>No other users</li>')
 
- data.forEach(u => {
-  const li = document.createElement('li')
-  li.textContent = u.name || u.email
-  li.dataset.userId = u.id
-  li.onclick = () => {
-    selectUser(u)
-    li.classList.remove('new-message')
-  }
-  userList.appendChild(li)
-})
-  
+  data.forEach(u => {
+    const li = document.createElement('li')
+    li.textContent = u.name || u.email
+    li.dataset.userId = u.id
+    li.onclick = () => {
+      selectUser(u)
+      li.classList.remove('new-message')
+    }
+    userList.appendChild(li)
+  })
+
   // Auto-select first user on desktop
   if (window.innerWidth >= 768 && data.length) selectUser(data[0])
 }
@@ -133,7 +133,6 @@ function selectUser(user) {
   messagesDiv.innerHTML = ''
   loadMessages()
   subscribeToChat()
-  
 
   if (window.innerWidth < 768) {
     mobileView = 'messages'
@@ -164,16 +163,20 @@ async function sendMessage() {
       receiver_id: selectedUser.id,
       content: text,
     }]).select()
+
     if (error) throw error
 
     const inserted = data?.[0]
     if (inserted) {
       seenMessageIds.add(inserted.id)
-      const tempDiv = [...messagesDiv.querySelectorAll('.message')].find(div => div.dataset.id === tempMsg.id)
+      const tempDiv = [...messagesDiv.querySelectorAll('.message')]
+        .find(div => div.dataset.id === tempMsg.id)
       if (tempDiv) tempDiv.remove()
       appendMessage(inserted)
     }
-  } catch (err) { console.error('Send message error:', err.message) }
+  } catch (err) {
+    console.error('Send message error:', err.message)
+  }
 }
 
 async function loadMessages() {
@@ -181,12 +184,15 @@ async function loadMessages() {
   const { data, error } = await supabase
     .from('messages')
     .select('*')
-    .or(`and(sender_id.eq.${currentUser.id},receiver_id.eq.${selectedUser.id}),and(sender_id.eq.${selectedUser.id},receiver_id.eq.${currentUser.id})`)
+    .or(
+      `and(sender_id.eq.${currentUser.id},receiver_id.eq.${selectedUser.id}),and(sender_id.eq.${selectedUser.id},receiver_id.eq.${currentUser.id})`
+    )
     .order('created_at', { ascending: true })
 
   messagesDiv.innerHTML = ''
   if (error) return console.error('Load messages error:', error.message)
   data.forEach(appendMessage)
+  messagesDiv.scrollTop = messagesDiv.scrollHeight
 }
 
 function appendMessage(msg) {
@@ -212,22 +218,15 @@ function appendMessage(msg) {
   msgDiv.append(avatar, textDiv, timeDiv)
   messagesDiv.appendChild(msgDiv)
 
-  // Auto-scroll
-  if (!messagesPanel.classList.contains('hidden')) messagesDiv.scrollTop = messagesDiv.scrollHeight
+  // Auto-scroll vertically
+  messagesDiv.scrollTop = messagesDiv.scrollHeight
 
-  // Auto-switch mobile view if new message from selected user
-  if (window.innerWidth < 768 && msg.sender_id === selectedUser?.id) {
-    mobileView = 'messages'
-    updateMobileView()
-  }
-
-  // Highlight unread messages from other users (optional)
+  // Mobile: highlight unread messages
   if (window.innerWidth < 768 && msg.sender_id !== selectedUser?.id) {
-    const li = [...userList.children].find(li => li.textContent.includes(msg.sender_id))
+    const li = [...userList.children].find(li => li.dataset.userId === msg.sender_id)
     if (li) li.classList.add('new-message')
   }
 }
-
 
 // ---------- Unified Real-time ----------
 function subscribeToChat() {
@@ -237,29 +236,24 @@ function subscribeToChat() {
   chatChannel = supabase.channel(`chat-${currentUser.id}`)
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
       const msg = payload.new
-      const isFromOrToSelected =
-        (msg.sender_id === currentUser.id && msg.receiver_id === selectedUser?.id) ||
-        (msg.receiver_id === currentUser.id && msg.sender_id === selectedUser?.id)
-
       const isDesktop = window.innerWidth >= 768
+      const isSelectedConversation =
+        selectedUser && (
+          (msg.sender_id === selectedUser.id && msg.receiver_id === currentUser.id) ||
+          (msg.receiver_id === selectedUser.id && msg.sender_id === currentUser.id)
+        )
 
-      if (!seenMessageIds.has(msg.id)) {
-        seenMessageIds.add(msg.id)
+      if (!seenMessageIds.has(msg.id) && (isDesktop || isSelectedConversation)) {
+        appendMessage(msg)
+      }
 
-        if (isFromOrToSelected || isDesktop) {
-          appendMessage(msg)
-        }
-
-        // Highlight new message for mobile if sender != selectedUser
-        if (window.innerWidth < 768 && msg.sender_id !== selectedUser?.id) {
-          const li = [...userList.children].find(li => li.dataset.userId === msg.sender_id)
-          if (li) li.classList.add('new-message')
-        }
+      if (!isDesktop && msg.sender_id !== selectedUser?.id) {
+        const li = [...userList.children].find(li => li.dataset.userId === msg.sender_id)
+        if (li) li.classList.add('new-message')
       }
     })
     .subscribe()
 }
-
 
 // ---------- Profile ----------
 async function saveProfile() {
