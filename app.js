@@ -240,42 +240,43 @@ function showAuth() {
 
 // ---------- Init App ----------
 async function initApp() {
-  // 1️⃣ Handle OAuth redirect (PKCE)
-  if (window.location.hash.includes('access_token') || window.location.hash.includes('refresh_token')) {
-    try {
-      const { data, error } = await supabase.auth.getSessionFromUrl({ storeSession: true })
-      if (error) throw error
-      currentUser = data.session?.user || null
-      if (currentUser) await ensureUserProfile(currentUser)
-    } catch (err) {
-      console.error('Exchange error:', err.message)
-    } finally {
-      history.replaceState(null, '', window.location.pathname)
-    }
-  }
+  try {
+    // 1️⃣ Supabase automatically handles PKCE redirects
+    const { data: { session }, error } = await supabase.auth.getSession();
+    if (error) console.error('Session error:', error);
 
-  // 2️⃣ Get session for returning users
-  if (!currentUser) {
-    const { data: { session }, error } = await supabase.auth.getSession()
-    if (error) console.error('Session error:', error)
-    currentUser = session?.user || null
-    if (currentUser) await ensureUserProfile(currentUser)
-  }
-
-  // 3️⃣ Show appropriate UI
-  if (currentUser) showApp()
-  else showAuth()
-
-  // 4️⃣ Listen for auth state changes
-  supabase.auth.onAuthStateChange((_event, session) => {
+    // 2️⃣ If a session exists, show app, otherwise show sign-in
     if (session?.user) {
-      currentUser = session.user
-      ensureUserProfile(currentUser).then(showApp)
+      currentUser = session.user;
+      await ensureUserProfile(currentUser);
+      showApp();
     } else {
-      currentUser = null
-      showAuth()
+      showAuth();
     }
-  })
+
+    // 3️⃣ React to future login/logout automatically
+    supabase.auth.onAuthStateChange(async (event, session) => {
+      if (session?.user) {
+        currentUser = session.user;
+        await ensureUserProfile(currentUser);
+        showApp();
+      } else {
+        currentUser = null;
+        showAuth();
+      }
+    });
+
+    // 4️⃣ Clean up the URL after redirect (removes tokens)
+    if (
+      window.location.hash.includes('access_token') ||
+      window.location.hash.includes('refresh_token') ||
+      window.location.hash.includes('error')
+    ) {
+      history.replaceState(null, '', window.location.pathname);
+    }
+  } catch (err) {
+    console.error('Init error:', err.message);
+  }
 }
 
 initApp()
