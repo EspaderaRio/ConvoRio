@@ -1,71 +1,56 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ConvoRio</title>
-  <link rel="stylesheet" href="style.css" />
-  <link rel="icon" href="favicon.png" type="image/png">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ConvoRio Chat App</title>
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <!-- ========== AUTH SECTION ========== -->
+  <!-- AUTH -->
   <div id="auth" class="auth-container">
-    <div class="auth-card">
-      <h1>Welcome to ConvoRio 💬</h1>
-      <p>Chat in real-time, share ideas, and stay connected.</p>
-      <button id="sign-in-btn" class="primary-btn">Sign in with Google</button>
-    </div>
+    <h2>Welcome to ConvoRio</h2>
+    <button id="sign-in-btn" class="btn">Sign in with Google</button>
   </div>
 
-  <!-- ========== MAIN APP SECTION ========== -->
-  <div id="app" class="hidden app-container">
-    <header class="topbar">
-      <h2>ConvoRio</h2>
-      <div class="tabs">
-        <button id="tab-chat" class="tab-btn active">Chat</button>
-        <button id="tab-profile" class="tab-btn">Profile</button>
-        <button id="sign-out-btn" class="signout-btn">Sign Out</button>
-      </div>
-    </header>
-
-
-    <main>
-         <div class="mobile-toggle">
-    <button id="show-users-btn" class="primary-btn">Users</button>
-    <button id="show-messages-btn" class="primary-btn">Chat</button>
-  </div>
-
-  <!-- Chat Section -->
-  <section id="chat" class="chat-container">
-    <aside class="users-panel">
-      <h3>Users</h3>
-      <ul id="user-list"></ul>
-    </aside>
-
-    <div class="messages-panel">
-      <h3 id="chat-with">Select a user to chat</h3>
-      <div id="messages" class="messages"></div>
-
-      <div id="message-box" class="message-box hidden">
-        <input id="message-input" type="text" placeholder="Type a message..." />
-        <button id="send-btn" class="send-btn">Send</button>
-      </div>
+  <!-- APP -->
+  <div id="app" class="app-container hidden">
+    <!-- Tabs -->
+    <div class="tabs">
+      <button id="tab-chat" class="tab active">Chat</button>
+      <button id="tab-profile" class="tab">Profile</button>
     </div>
-  </section>
 
-      <!-- ===== Profile Section ===== -->
-      <section id="profile" class="hidden profile-container">
-        <h3>Your Profile</h3>
-        <div class="profile-card">
-          <img id="current-avatar" class="avatar-large" src="./default-avatar.png" alt="Avatar" />
-          <input id="profile-name" type="text" placeholder="Your name" />
-          <input id="profile-avatar" type="file" accept="image/*" />
-          <button id="save-profile-btn" class="primary-btn">Save Profile</button>
+    <!-- Chat Section -->
+    <div id="chat" class="section">
+      <div class="sidebar">
+        <div class="sidebar-header">
+          <button id="show-users-btn" class="btn small">Users</button>
+          <button id="show-messages-btn" class="btn small">Messages</button>
         </div>
-      </section>
-    </main>
+        <ul id="user-list" class="user-list"></ul>
+      </div>
+      <div class="chat-panel">
+        <h3 id="chat-with">Chat</h3>
+        <div id="messages" class="messages"></div>
+        <div id="message-box" class="message-box">
+          <input id="message-input" type="text" placeholder="Type a message..." />
+          <button id="send-btn" class="btn">Send</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Profile Section -->
+    <div id="profile" class="section hidden">
+      <h3>My Profile</h3>
+      <img id="current-avatar" src="./default-avatar.png" class="profile-avatar" />
+      <input id="profile-avatar" type="file" />
+      <input id="profile-name" type="text" placeholder="Full Name" />
+      <button id="save-profile-btn" class="btn">Save Profile</button>
+      <button id="sign-out-btn" class="btn red">Sign Out</button>
+    </div>
   </div>
 
-  <script type="module" src="app.js"></script>
+<script type="module" src="app.js"></script>
 </body>
 </html>
