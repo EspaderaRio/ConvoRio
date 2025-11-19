@@ -1,9 +1,9 @@
 // ============================
-// ConvoRio App (Supabase v2.33) – Unified Version
+// ConvoRio App (Supabase v2.33) - CLEANED & CONSOLIDATED
 // ============================
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.33.0'
 
-// ---------- Supabase Setup ----------
+// ---------- Supabase Setup (rotate anon key if this is real) ----------
 const SUPABASE_URL = 'https://egusoznrqlddxpyqstqw.supabase.co'
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVndXNvem5ycWxkZHhweXFzdHF3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA0MTQyOTIsImV4cCI6MjA3NTk5MDI5Mn0.N4TwIWVzTWMpmLJD95-wFd3NseWKrqNFb8gOWXIuf-c'
 
@@ -33,11 +33,16 @@ const profileAvatarInput = document.getElementById('profile-avatar')
 const currentAvatar = document.getElementById('current-avatar')
 const showUsersBtn = document.getElementById('show-users-btn')
 const showMessagesBtn = document.getElementById('show-messages-btn')
-const usersPanel = userList.parentElement
-const messagesPanel = messagesDiv.parentElement
+
+// Defensive DOM checks (in case HTML differs)
+if (!authDiv || !appDiv) console.warn('Auth or App container missing from DOM')
 
 // ---------- Mobile / Desktop Toggle ----------
 function updateMobileView() {
+  const usersPanel = userList?.parentElement
+  const messagesPanel = messagesDiv?.parentElement
+  if (!usersPanel || !messagesPanel) return
+
   if (window.innerWidth < 768) {
     if (mobileView === 'users') {
       usersPanel.classList.remove('hidden')
@@ -53,27 +58,32 @@ function updateMobileView() {
       messageBox.classList.remove('hidden')
     }
   } else {
-    // Desktop: show both
     usersPanel.classList.remove('hidden', 'visible')
     messagesPanel.classList.remove('hidden', 'visible')
     messageBox.classList.remove('hidden')
   }
 }
 
-showUsersBtn.onclick = () => { mobileView = 'users'; updateMobileView() }
-showMessagesBtn.onclick = () => { mobileView = 'messages'; updateMobileView() }
+showUsersBtn?.addEventListener('click', () => { mobileView = 'users'; updateMobileView() })
+showMessagesBtn?.addEventListener('click', () => { mobileView = 'messages'; updateMobileView() })
 window.addEventListener('resize', updateMobileView)
 updateMobileView()
 
 // ---------- Tabs ----------
-document.getElementById('tab-chat').onclick = () => { chatDiv.classList.remove('hidden'); profileDiv.classList.add('hidden') }
-document.getElementById('tab-profile').onclick = () => { profileDiv.classList.remove('hidden'); chatDiv.classList.add('hidden') }
+document.getElementById('tab-chat')?.addEventListener('click', () => {
+  chatDiv?.classList.remove('hidden')
+  profileDiv?.classList.add('hidden')
+})
+document.getElementById('tab-profile')?.addEventListener('click', () => {
+  profileDiv?.classList.remove('hidden')
+  chatDiv?.classList.add('hidden')
+})
 
 // ---------- Buttons ----------
-document.getElementById('sign-in-btn').onclick = signIn
-document.getElementById('sign-out-btn').onclick = signOut
-document.getElementById('send-btn').onclick = sendMessage
-document.getElementById('save-profile-btn').onclick = saveProfile
+document.getElementById('sign-in-btn')?.addEventListener('click', signIn)
+document.getElementById('sign-out-btn')?.addEventListener('click', signOut)
+document.getElementById('send-btn')?.addEventListener('click', sendMessage)
+document.getElementById('save-profile-btn')?.addEventListener('click', saveProfile)
 
 // ---------- Helpers ----------
 function getAvatarUrl(user) {
@@ -82,47 +92,57 @@ function getAvatarUrl(user) {
 }
 
 function cleanupRealtime() {
-  if (chatChannel) { supabase.removeChannel(chatChannel); chatChannel = null }
+  if (chatChannel) {
+    try { supabase.removeChannel(chatChannel) } catch (e) { /* ignore */ }
+    chatChannel = null
+  }
 }
 
 // ---------- Profiles ----------
 async function ensureUserProfile(user) {
   if (!user) return
-  const { error } = await supabase.from('profiles').upsert({
-    id: user.id,
-    email: user.email,
-    name: user.user_metadata.full_name || user.email,
-    avatar_url: user.user_metadata.avatar_url || null,
-  }, { onConflict: 'id' })
-  if (error) console.error('Profile upsert error:', error.message)
+  try {
+    const { error } = await supabase.from('profiles').upsert({
+      id: user.id,
+      email: user.email,
+      name: user.user_metadata?.full_name || user.user_metadata?.name || user.email,
+      avatar_url: user.user_metadata?.avatar_url || null,
+    }, { onConflict: 'id' })
+    if (error) console.error('Profile upsert error:', error.message)
+  } catch (err) {
+    console.error('ensureUserProfile error:', err)
+  }
 }
 
 // ---------- Load Users ----------
 async function loadUsers() {
   if (!currentUser?.id) return
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('*')
-    .neq('id', currentUser.id)
-    .order('name', { ascending: true })
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .neq('id', currentUser.id)
+      .order('name', { ascending: true })
 
-  userList.innerHTML = ''
-  if (error) return console.error('Load users error:', error.message)
-  if (!data.length) return (userList.innerHTML = '<li>No other users</li>')
+    userList.innerHTML = ''
+    if (error) return console.error('Load users error:', error.message)
+    if (!data?.length) return (userList.innerHTML = '<li>No other users</li>')
 
-  data.forEach(u => {
-    const li = document.createElement('li')
-    li.textContent = u.name || u.email
-    li.dataset.userId = u.id
-    li.onclick = () => {
-      selectUser(u)
-      li.classList.remove('new-message')
-    }
-    userList.appendChild(li)
-  })
+    data.forEach(u => {
+      const li = document.createElement('li')
+      li.textContent = u.name || u.email
+      li.dataset.userId = u.id
+      li.addEventListener('click', () => {
+        selectUser(u)
+        li.classList.remove('new-message')
+      })
+      userList.appendChild(li)
+    })
 
-  // Auto-select first user on desktop
-  if (window.innerWidth >= 768 && data.length) selectUser(data[0])
+    if (window.innerWidth >= 768 && data.length) selectUser(data[0])
+  } catch (err) {
+    console.error('loadUsers error:', err)
+  }
 }
 
 // ---------- Chat ----------
@@ -132,7 +152,7 @@ function selectUser(user) {
   messageBox.classList.remove('hidden')
   messagesDiv.innerHTML = ''
   loadMessages()
-  subscribeToChat()
+  subscribeToChat() // (re)subscribe for the selected conversation
 
   if (window.innerWidth < 768) {
     mobileView = 'messages'
@@ -175,30 +195,33 @@ async function sendMessage() {
       appendMessage(inserted)
     }
   } catch (err) {
-    console.error('Send message error:', err.message)
+    console.error('Send message error:', err.message || err)
   }
 }
 
 async function loadMessages() {
   if (!currentUser?.id || !selectedUser?.id) return
-  const { data, error } = await supabase
-    .from('messages')
-    .select('*')
-    .or(
-      `and(sender_id.eq.${currentUser.id},receiver_id.eq.${selectedUser.id}),and(sender_id.eq.${selectedUser.id},receiver_id.eq.${currentUser.id})`
-    )
-    .order('created_at', { ascending: true })
+  try {
+    const { data, error } = await supabase
+      .from('messages')
+      .select('*')
+      .or(
+        `and(sender_id.eq.${currentUser.id},receiver_id.eq.${selectedUser.id}),and(sender_id.eq.${selectedUser.id},receiver_id.eq.${currentUser.id})`
+      )
+      .order('created_at', { ascending: true })
 
-  messagesDiv.innerHTML = ''
-  if (error) return console.error('Load messages error:', error.message)
-  data.forEach(appendMessage)
-  messagesDiv.scrollTo({
-  top: messagesDiv.scrollHeight,
-  behavior: 'smooth'
-})
+    messagesDiv.innerHTML = ''
+    if (error) return console.error('Load messages error:', error.message)
+    (data || []).forEach(appendMessage)
+    // scroll (note: behavior may be ignored on some mobile browsers)
+    messagesDiv.scrollTo({ top: messagesDiv.scrollHeight, behavior: 'smooth' })
+  } catch (err) {
+    console.error('loadMessages error:', err)
+  }
 }
 
 function appendMessage(msg) {
+  if (!msg) return
   if (seenMessageIds.has(msg.id)) return
   seenMessageIds.add(msg.id)
 
@@ -209,6 +232,7 @@ function appendMessage(msg) {
   const avatar = document.createElement('img')
   avatar.classList.add('avatar')
   avatar.src = msg.sender_avatar || './default-avatar.png'
+  avatar.alt = 'avatar'
 
   const textDiv = document.createElement('div')
   textDiv.classList.add('text')
@@ -216,141 +240,159 @@ function appendMessage(msg) {
 
   const timeDiv = document.createElement('div')
   timeDiv.classList.add('timestamp')
-  timeDiv.textContent = new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  try {
+    timeDiv.textContent = new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  } catch (e) {
+    timeDiv.textContent = ''
+  }
 
   msgDiv.append(avatar, textDiv, timeDiv)
   messagesDiv.appendChild(msgDiv)
 
-  // Auto-scroll vertically
+  // Auto-scroll
   messagesDiv.scrollTop = messagesDiv.scrollHeight
 
-  // Mobile: highlight unread messages
+  // Mobile: highlight unread messages if not the currently selected conversation
   if (window.innerWidth < 768 && msg.sender_id !== selectedUser?.id) {
     const li = [...userList.children].find(li => li.dataset.userId === msg.sender_id)
     if (li) li.classList.add('new-message')
   }
 }
 
-
 // ---------- Unified Real-time ----------
 function subscribeToChat() {
   cleanupRealtime()
   if (!currentUser?.id) return
 
-  chatChannel = supabase.channel(`messages:${currentUser.id}`)
-    .on(
-      'postgres_changes',
-      {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'messages',
-        filter: `receiver_id=eq.${currentUser.id}`
-      },
-      (payload) => {
-        const msg = payload.new
-        const isDesktop = window.innerWidth >= 768
-        const isSelectedConversation =
-          selectedUser && (
-            (msg.sender_id === selectedUser.id && msg.receiver_id === currentUser.id) ||
-            (msg.receiver_id === selectedUser.id && msg.sender_id === currentUser.id)
-          )
+  // subscribe to INSERTs on messages and filter in the handler
+  chatChannel = supabase.channel(`realtime:messages:${currentUser.id}`)
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
+      const msg = payload.new
+      // only handle messages that involve the current user (sender or receiver)
+      if (!(msg.sender_id === currentUser.id || msg.receiver_id === currentUser.id)) return
 
-        if (!seenMessageIds.has(msg.id) && (isDesktop || isSelectedConversation)) {
-          appendMessage(msg)
-        }
+      const isDesktop = window.innerWidth >= 768
+      const isSelectedConversation =
+        selectedUser && (
+          (msg.sender_id === selectedUser.id && msg.receiver_id === currentUser.id) ||
+          (msg.receiver_id === selectedUser.id && msg.sender_id === currentUser.id)
+        )
 
-        if (!isDesktop && msg.sender_id !== selectedUser?.id) {
-          const li = [...userList.children].find(li => li.dataset.userId === msg.sender_id)
-          if (li) li.classList.add('new-message')
-        }
+      if (!seenMessageIds.has(msg.id) && (isDesktop || isSelectedConversation)) {
+        appendMessage(msg)
       }
-    )
-    .subscribe()
-}
 
+      if (!isDesktop && msg.sender_id !== selectedUser?.id) {
+        const li = [...userList.children].find(li => li.dataset.userId === msg.sender_id)
+        if (li) li.classList.add('new-message')
+      }
+    })
+    .subscribe(err => {
+      if (err) console.error('Realtime subscribe error:', err)
+    })
+}
 
 // ---------- Profile ----------
 async function saveProfile() {
   if (!currentUser?.id) return
 
   let avatarUrl = getAvatarUrl(currentUser)
-  if (profileAvatarInput.files.length) {
+  if (profileAvatarInput?.files?.length) {
     const file = profileAvatarInput.files[0]
     const ext = file.name.split('.').pop()
     const path = `${currentUser.id}.${ext}`
-    const { error: uploadError } = await supabase.storage.from('avatars').upload(path, file, { upsert: true })
-    if (uploadError) return console.error('Avatar upload error:', uploadError.message)
-    const { data } = supabase.storage.from('avatars').getPublicUrl(path)
-    avatarUrl = data?.publicUrl || './default-avatar.png'
+    try {
+      const { error: uploadError } = await supabase.storage.from('avatars').upload(path, file, { upsert: true })
+      if (uploadError) return console.error('Avatar upload error:', uploadError.message)
+      const { data } = supabase.storage.from('avatars').getPublicUrl(path)
+      avatarUrl = data?.publicUrl || avatarUrl
+    } catch (err) {
+      console.error('Avatar upload exception:', err)
+    }
   }
 
-  const { error } = await supabase.from('profiles')
-    .update({ name: profileName.value, avatar_url: avatarUrl })
-    .eq('id', currentUser.id)
-  if (error) console.error('Save profile error:', error.message)
-  currentAvatar.src = avatarUrl
-  await loadUsers()
+  try {
+    const { error } = await supabase.from('profiles')
+      .update({ name: profileName.value, avatar_url: avatarUrl })
+      .eq('id', currentUser.id)
+    if (error) console.error('Save profile error:', error.message)
+    currentAvatar.src = avatarUrl
+    await loadUsers()
+  } catch (err) {
+    console.error('saveProfile error:', err)
+  }
 }
 
 // ---------- UI ----------
 function showApp() {
-  authDiv.classList.add('hidden')
-  appDiv.classList.remove('hidden')
-  profileName.value = currentUser.user_metadata.full_name || currentUser.email
+  authDiv?.classList.add('hidden')
+  appDiv?.classList.remove('hidden')
+  profileName.value = currentUser?.user_metadata?.full_name || currentUser?.user_metadata?.name || currentUser?.email || ''
   currentAvatar.src = getAvatarUrl(currentUser)
   loadUsers()
   subscribeToChat()
 }
 
 function showAuth() {
-  appDiv.classList.add('hidden')
-  authDiv.classList.remove('hidden')
+  appDiv?.classList.add('hidden')
+  authDiv?.classList.remove('hidden')
 }
 
 // ---------- Auth ----------
 async function signIn() {
-  const { data: session } = await supabase.auth.getSession()
-  if (session?.user) return console.log('Already logged in as', session.user.email)
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (session?.user) return console.log('Already logged in as', session.user.email)
 
-  const { error } = await supabase.auth.signInWithOAuth({
-    provider: 'google',
-    options: { redirectTo: window.location.origin + window.location.pathname }
-  })
-  if (error) console.error('Sign-in error:', error.message)
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.origin + window.location.pathname }
+    })
+    if (error) console.error('Sign-in error:', error.message)
+  } catch (err) {
+    console.error('signIn exception:', err)
+  }
 }
 
 async function signOut() {
-  await supabase.auth.signOut()
-  currentUser = null
-  selectedUser = null
-  cleanupRealtime()
-  showAuth()
+  try {
+    await supabase.auth.signOut()
+  } catch (err) {
+    console.error('Sign-out error:', err)
+  } finally {
+    currentUser = null
+    selectedUser = null
+    cleanupRealtime()
+    showAuth()
+  }
 }
 
-// ---------- Init ----------
-async function initApp() {
-  const { data: { session }, error } = await supabase.auth.getSession()
-  if (error) console.error('Session error:', error)
-
-  if (session?.user) {
-    currentUser = session.user
-    await ensureUserProfile(currentUser)
-    showApp()
-  } else showAuth()
-
-  supabase.auth.onAuthStateChange(async (_event, session) => {
+// ---------- Startup: single reliable boot sequence ----------
+window.addEventListener('load', async () => {
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
     if (session?.user) {
       currentUser = session.user
       await ensureUserProfile(currentUser)
       showApp()
     } else {
-      currentUser = null
       showAuth()
-      cleanupRealtime()
     }
-  })
+  } catch (err) {
+    console.error('startup session error:', err)
+    showAuth()
+  }
+})
 
-  if (window.location.hash.includes('access_token')) history.replaceState(null, '', window.location.pathname)
-}
-
-initApp()
+// single onAuthStateChange listener (no duplicates)
+supabase.auth.onAuthStateChange(async (_event, session) => {
+  if (session?.user) {
+    currentUser = session.user
+    await ensureUserProfile(currentUser)
+    showApp()
+  } else {
+    currentUser = null
+    cleanupRealtime()
+    showAuth()
+  }
+})
