@@ -231,32 +231,43 @@ function appendMessage(msg) {
   }
 }
 
+
 // ---------- Unified Real-time ----------
 function subscribeToChat() {
   cleanupRealtime()
   if (!currentUser?.id) return
 
-  chatChannel = supabase.channel(`chat-${currentUser.id}`)
-    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
-      const msg = payload.new
-      const isDesktop = window.innerWidth >= 768
-      const isSelectedConversation =
-        selectedUser && (
-          (msg.sender_id === selectedUser.id && msg.receiver_id === currentUser.id) ||
-          (msg.receiver_id === selectedUser.id && msg.sender_id === currentUser.id)
-        )
+  chatChannel = supabase.channel(`messages:${currentUser.id}`)
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'messages',
+        filter: `receiver_id=eq.${currentUser.id}`
+      },
+      (payload) => {
+        const msg = payload.new
+        const isDesktop = window.innerWidth >= 768
+        const isSelectedConversation =
+          selectedUser && (
+            (msg.sender_id === selectedUser.id && msg.receiver_id === currentUser.id) ||
+            (msg.receiver_id === selectedUser.id && msg.sender_id === currentUser.id)
+          )
 
-      if (!seenMessageIds.has(msg.id) && (isDesktop || isSelectedConversation)) {
-        appendMessage(msg)
-      }
+        if (!seenMessageIds.has(msg.id) && (isDesktop || isSelectedConversation)) {
+          appendMessage(msg)
+        }
 
-      if (!isDesktop && msg.sender_id !== selectedUser?.id) {
-        const li = [...userList.children].find(li => li.dataset.userId === msg.sender_id)
-        if (li) li.classList.add('new-message')
+        if (!isDesktop && msg.sender_id !== selectedUser?.id) {
+          const li = [...userList.children].find(li => li.dataset.userId === msg.sender_id)
+          if (li) li.classList.add('new-message')
+        }
       }
-    })
+    )
     .subscribe()
 }
+
 
 // ---------- Profile ----------
 async function saveProfile() {
