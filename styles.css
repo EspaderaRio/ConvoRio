@@ -323,6 +323,17 @@
       }
     }
 
+.message-new {
+  opacity: 0;
+  transform: translateY(20px);
+  transition: transform 0.25s ease, opacity 0.25s ease;
+}
+
+.message-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
     .message.sent {
       background: #667eea;
       color: white;
