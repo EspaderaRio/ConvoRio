@@ -228,124 +228,146 @@ window.addEventListener('DOMContentLoaded', async () => {
   });
 
   // ---------- Messaging ----------
-  function openChat(userId, userEmail) {
-    currentChatUser = { id: userId, email: userEmail };
-    const name = userEmail.split('@')[0];
-    const initial = (userEmail[0] || '?').toUpperCase();
-    chatHeaderName.textContent = name;
-    chatHeaderAvatar.textContent = initial;
-    chatView.classList.add('active');
+function openChat(userId, userEmail) {
+  currentChatUser = { id: userId, email: userEmail };
+  const name = userEmail.split('@')[0];
+  const initial = (userEmail[0] || '?').toUpperCase();
+  chatHeaderName.textContent = name;
+  chatHeaderAvatar.textContent = initial;
+  chatView.classList.add('active');
+  displayedMessages.clear();
+  loadMessages(userId);
+  subscribeToMessages(userId);
+}
+
+backBtn?.addEventListener('click', () => {
+  chatView.classList.remove('active');
+  cleanupRealtime();
+  currentChatUser = null;
+});
+
+async function loadMessages(otherUserId) {
+  if (!currentUser) return;
+  try {
+    const { data: messages, error } = await supabase
+      .from('messages')
+      .select('*')
+      .or(
+        `and(sender_id.eq.${currentUser.id},receiver_id.eq.${otherUserId}),` +
+        `and(sender_id.eq.${otherUserId},receiver_id.eq.${currentUser.id})`
+      )
+      .order('created_at', { ascending: true });
+
+    if (error) throw error;
+
+    messagesContainer.innerHTML = '';
     displayedMessages.clear();
-    loadMessages(userId);
-    subscribeToMessages(userId);
-  }
 
-  backBtn?.addEventListener('click', () => {
-    chatView.classList.remove('active');
-    cleanupRealtime();
-    currentChatUser = null;
-  });
-
-  async function loadMessages(otherUserId) {
-    if (!currentUser) return;
-    try {
-      const { data: messages, error } = await supabase.from('messages')
-        .select('*')
-        .or(`and(sender_id.eq.${currentUser.id},receiver_id.eq.${otherUserId}),and(sender_id.eq.${otherUserId},receiver_id.eq.${currentUser.id})`)
-        .order('created_at', { ascending: true });
-
-      if (error) throw error;
-
-      messagesContainer.innerHTML = '';
-      displayedMessages.clear();
-
-      if (!messages || messages.length === 0) {
-        messagesContainer.innerHTML = `<div class="empty-state"><div class="empty-state-icon">👋</div><h3>Start Chatting</h3><p>Send a message to get the conversation started!</p></div>`;
-      } else {
-        messages.forEach(msg => appendMessage(msg, msg.sender_id === currentUser.id));
-      }
-    } catch (err) {
-      console.error('Error loading messages:', err);
-      messagesContainer.innerHTML = `<div class="empty-state"><div class="empty-state-icon">💬</div><h3>Couldn't Load Messages</h3><p>Check database or RLS policies.</p></div>`;
+    if (!messages || messages.length === 0) {
+      messagesContainer.innerHTML = `<div class="empty-state"><div class="empty-state-icon">👋</div><h3>Start Chatting</h3><p>Send a message to get the conversation started!</p></div>`;
+    } else {
+      messages.forEach(msg => appendMessage(msg, msg.sender_id === currentUser.id));
     }
+  } catch (err) {
+    console.error('Error loading messages:', err);
   }
+}
 
-  function subscribeToMessages(otherUserId) {
-    cleanupRealtime();
 
-    messagesSubscription = supabase.channel(`messages:${currentUser.id}:${otherUserId}`)
-      .on('postgres_changes', {
+function subscribeToMessages(otherUserId) {
+  cleanupRealtime();
+  messagesSubscription = supabase
+    .channel('realtime-messages')
+    .on(
+      'postgres_changes',
+      {
         event: 'INSERT',
         schema: 'public',
         table: 'messages',
         filter: `or(and(sender_id.eq.${currentUser.id},receiver_id.eq.${otherUserId}),and(sender_id.eq.${otherUserId},receiver_id.eq.${currentUser.id}))`
-      }, payload => {
-        if (displayedMessages.has(payload.new.id)) return;
-        appendMessage(payload.new, payload.new.sender_id === currentUser.id);
-      })
-      .subscribe();
+      },
+      payload => {
+        // Only append if we haven't displayed it yet
+        if (!displayedMessages.has(payload.new.id)) {
+          appendMessage(payload.new, payload.new.sender_id === currentUser.id);
+        }
+      }
+    )
+    .subscribe();
+}
+
+
+function appendMessage(message, isSent) {
+  if (displayedMessages.has(message.id)) return;
+  displayedMessages.add(message.id);
+
+  const time = new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const emptyState = messagesContainer.querySelector('.empty-state');
+  if (emptyState) emptyState.remove();
+
+  const messageDiv = document.createElement('div');
+  messageDiv.className = `message ${isSent ? 'sent' : 'received'}`;
+  messageDiv.innerHTML = `${message.content}<div class="message-meta">${time}</div>`;
+  messagesContainer.appendChild(messageDiv);
+  messagesContainer.scrollTop = messagesContainer.scrollHeight;
+}
+
+
+async function sendMessage() {
+  const content = messageInput.value.trim();
+  if (!content || !currentChatUser || sendBtn.disabled) return;
+
+  sendBtn.disabled = true;
+
+  // Immediately show the message in UI for sender
+  const tempMessage = {
+    id: 'temp-' + Date.now(),
+    content,
+    sender_id: currentUser.id,
+    receiver_id: currentChatUser.id,
+    created_at: new Date().toISOString()
+  };
+  appendMessage(tempMessage, true);
+  messageInput.value = '';
+
+  try {
+    const { data, error } = await supabase.from('messages').insert({
+      content,
+      sender_id: currentUser.id,
+      receiver_id: currentChatUser.id
+    }).select().single();
+
+    if (error) throw error;
+
+    // Remove temp message and replace with real one
+    displayedMessages.delete(tempMessage.id);
+    appendMessage(data, true);
+  } catch (err) {
+    console.error('Error sending message:', err);
+    showToast('Failed to send message');
+    // Optionally remove temp message
+    displayedMessages.delete(tempMessage.id);
+    const tempEl = document.querySelector(`[data-temp-id="${tempMessage.id}"]`);
+    if (tempEl) tempEl.remove();
+  } finally {
+    sendBtn.disabled = false;
   }
+}
 
-  function appendMessage(message, isSent) {
-    if (displayedMessages.has(message.id)) return;
-    displayedMessages.add(message.id);
-
-    const time = new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const emptyState = messagesContainer.querySelector('.empty-state');
-    if (emptyState) emptyState.remove();
-
-    const messageDiv = document.createElement('div');
-    messageDiv.className = `message ${isSent ? 'sent' : 'received'}`;
-    messageDiv.innerHTML = `${message.content}<div class="message-meta">${time}</div>`;
-    messagesContainer.appendChild(messageDiv);
-    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+function cleanupRealtime() {
+  if (messagesSubscription) {
+    try { supabase.removeChannel(messagesSubscription); } catch (e) {}
+    messagesSubscription = null;
   }
+}
 
-  async function sendMessage() {
-    const content = messageInput.value.trim();
-    if (!content || !currentChatUser || sendBtn.disabled) return;
-
-    // Optimistic render
-    const tempId = 'temp-' + Date.now();
-    appendMessage({ id: tempId, content, sender_id: currentUser.id, created_at: new Date().toISOString() }, true);
-    messageInput.value = '';
-
-    sendBtn.disabled = true;
-    try {
-      const { data, error } = await supabase.from('messages').insert({
-        content,
-        sender_id: currentUser.id,
-        receiver_id: currentChatUser.id
-      }).select().single();
-
-      if (error) throw error;
-
-      // Replace tempId with real message id
-      displayedMessages.delete(tempId);
-      appendMessage(data, true);
-
-    } catch (err) {
-      console.error('Error sending message:', err);
-      showToast('Failed to send message');
-    } finally {
-      sendBtn.disabled = false;
-    }
+sendBtn?.addEventListener('click', sendMessage);
+messageInput?.addEventListener('keypress', e => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    sendMessage();
   }
-
-  function cleanupRealtime() {
-    if (messagesSubscription) {
-      try { supabase.removeChannel(messagesSubscription); } catch (e) {}
-      messagesSubscription = null;
-    }
-  }
-
-  sendBtn?.addEventListener('click', sendMessage);
-  messageInput?.addEventListener('keypress', e => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      sendMessage();
-    }
-  });
+});
 
   // ---------- Session startup ----------
   try {
