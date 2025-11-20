@@ -295,10 +295,10 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
 
     messagesSubscription = supabase
-      .channel(`messages:${currentUser.id}:${otherUserId}`)
-      .on('postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'messages' },
-        payload => {
+  .channel(`messages:${currentUser.id}:${otherUserId}`)
+  .on('postgres_changes', 
+      { event: 'INSERT', schema: 'public', table: 'messages' }, 
+      payload => {
           const msg = payload.new;
           // only append messages relevant to the current chat
           if ((msg.sender_id === otherUserId && msg.receiver_id === currentUser.id) ||
@@ -308,9 +308,10 @@ window.addEventListener('DOMContentLoaded', async () => {
           }
         }
       )
-      .subscribe(err => {
-        if (err) console.error('Realtime subscribe error:', err);
-      });
+      .subscribe(status => {
+    if (status === 'SUBSCRIBED') return; // ignore normal subscribed message
+    console.error('Realtime subscribe status:', status);
+  });
   }
 
   function appendMessage(message, isSent) {
