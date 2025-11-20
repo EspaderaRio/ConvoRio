@@ -1,4 +1,4 @@
-// script.js — Cleaned & updated ConvoRio
+// script.js — ConvoRio Fixed & Updated
 
 // ---------- Config ----------
 const USE_WINDOW_SUPABASE = !!window.supabase;
@@ -28,6 +28,7 @@ const defaultConfig = {
 
 // ---------- DOM Ready ----------
 window.addEventListener('DOMContentLoaded', async () => {
+
   // ---------- Init Supabase ----------
   if (USE_WINDOW_SUPABASE) {
     supabase = window.supabase;
@@ -185,7 +186,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     const password = passwordInput.value;
     if (!email || !password) return showAuthError('Enter email and password');
     signInBtn.disabled = true;
-    signInBtn.innerHTML = '<span class="loading"></span>';
+    signInBtn.textContent = 'Signing in...';
     const { data, error } = await signInWithEmail(email, password);
     signInBtn.disabled = false;
     signInBtn.textContent = defaultConfig.sign_in_button;
@@ -201,7 +202,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     if (!email || !password) return showAuthError('Enter email and password');
     if (password.length < 6) return showAuthError('Password must be at least 6 characters');
     signUpBtn.disabled = true;
-    signUpBtn.innerHTML = '<span class="loading"></span>';
+    signUpBtn.textContent = 'Creating...';
     const { data, error } = await signUpWithEmail(email, password);
     signUpBtn.disabled = false;
     signUpBtn.textContent = 'Create Account';
@@ -281,18 +282,32 @@ window.addEventListener('DOMContentLoaded', async () => {
       .subscribe();
   }
 
-  function appendMessage(message, isSent) {
-    if (displayedMessages.has(message.id)) return;
-    displayedMessages.add(message.id);
-    const time = new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const emptyState = messagesContainer.querySelector('.empty-state');
-    if (emptyState) emptyState.remove();
-    const messageDiv = document.createElement('div');
-    messageDiv.className = `message ${isSent ? 'sent' : 'received'}`;
-    messageDiv.innerHTML = `${message.content}<div class="message-meta">${time}</div>`;
-    messagesContainer.appendChild(messageDiv);
-    messagesContainer.scrollTop = messagesContainer.scrollHeight;
-  }
+function appendMessage(message, isSent) {
+  const msgId = message.id || `${message.sender_id}_${message.receiver_id}_${message.created_at}`;
+  if (displayedMessages.has(msgId)) return;
+  displayedMessages.add(msgId);
+
+  const time = new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const emptyState = messagesContainer.querySelector('.empty-state');
+  if (emptyState) emptyState.remove();
+
+  const messageDiv = document.createElement('div');
+  messageDiv.className = `message ${isSent ? 'sent' : 'received'} new-message`;
+  messageDiv.innerHTML = `${message.content}<div class="message-meta">${time}</div>`;
+  messagesContainer.appendChild(messageDiv);
+
+  // Smooth scroll to latest message
+  messageDiv.scrollIntoView({ behavior: 'smooth', block: 'end' });
+
+  // Highlight new message briefly
+  messageDiv.style.transition = 'background-color 0.8s ease';
+  messageDiv.style.backgroundColor = '#ffeaa7'; // temporary highlight color
+  setTimeout(() => {
+    messageDiv.style.backgroundColor = isSent
+      ? (window.elementSdk?.getConfig()?.primary_color || defaultConfig.primary_color)
+      : '#e0e0e0'; // default received message color
+  }, 500);
+}
 
   async function sendMessage() {
     const content = messageInput.value.trim();
@@ -315,13 +330,13 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   function cleanupRealtime() {
     if (messagesSubscription) {
-      try { supabase.removeChannel(messagesSubscription); } catch (e) {}
+      try { supabase.removeChannel(messagesSubscription); } catch (e) { console.warn(e); }
       messagesSubscription = null;
     }
   }
 
   sendBtn?.addEventListener('click', sendMessage);
-  messageInput?.addEventListener('keypress', e => {
+  messageInput?.addEventListener('keydown', e => {
     if (e.key === 'Enter') {
       e.preventDefault();
       sendMessage();
@@ -330,7 +345,8 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   // ---------- Session startup ----------
   try {
-    const { data: { session } } = await supabase.auth.getSession();
+    const { data, error } = await supabase.auth.getSession();
+    const session = data?.session;
     if (session?.user) {
       currentUser = session.user;
       await ensureProfileRow(currentUser);
@@ -355,6 +371,7 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   // ---------- Element SDK ----------
   async function onConfigChange(config) {
+    if (!document.body) return;
     const primaryColor = config.primary_color || defaultConfig.primary_color;
     const secondaryColor = config.secondary_color || defaultConfig.secondary_color;
     const customFont = config.font_family || defaultConfig.font_family;
@@ -388,4 +405,5 @@ window.addEventListener('DOMContentLoaded', async () => {
   if (window.elementSdk) {
     window.elementSdk.init({ defaultConfig, onConfigChange });
   }
-}); // DOMContentLoaded end
+
+}); // DOMContentLoaded
