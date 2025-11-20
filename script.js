@@ -1,20 +1,17 @@
-// app.js — Cleaned Auth-enabled ConvoRio
-// - Email/password & Google auth
-// - Profiles table used for user list
-// - Realtime messages via Postgres changes
-// - Single, reliable startup flow
-// - Element SDK hooks preserved
+// script.js — Cleaned & updated ConvoRio
 
-// ---------- Config (replace if you create client instead of using window.supabase) ----------
-const USE_WINDOW_SUPABASE = !!window.supabase; // if your environment provides a supabase client already
-const SUPABASE_URL = 'https://egusoznrqlddxpyqstqw.supabase.co'; // keep only if creating client
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVndXNvem5ycWxkZHhweXFzdHF3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA0MTQyOTIsImV4cCI6MjA3NTk5MDI5Mn0.N4TwIWVzTWMpmLJD95-wFd3NseWKrqNFb8gOWXIuf-c'; // replace when needed
+// ---------- Config ----------
+const USE_WINDOW_SUPABASE = !!window.supabase;
+const SUPABASE_URL = 'https://egusoznrqlddxpyqstqw.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVndXNvem5ycWxkZHhweXFzdHF3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA0MTQyOTIsImV4cCI6MjA3NTk5MDI5Mn0.N4TwIWVzTWMpmLJD95-wFd3NseWKrqNFb8gOWXIuf-c';
 
 // ---------- App state ----------
 let supabase = null;
 let currentUser = null;
 let currentChatUser = null;
 let messagesSubscription = null;
+const displayedMessages = new Set();
+
 const defaultConfig = {
   app_title: "Messages",
   welcome_message: "Sign in to start chatting with others in real-time",
@@ -29,21 +26,19 @@ const defaultConfig = {
   font_size: 16
 };
 
-// Wrap everything so DOM is ready
+// ---------- DOM Ready ----------
 window.addEventListener('DOMContentLoaded', async () => {
-  // ---------- Init Supabase client ----------
+  // ---------- Init Supabase ----------
   if (USE_WINDOW_SUPABASE) {
     supabase = window.supabase;
   } else {
-    // create client only if window.supabase not provided (useful for local dev)
-    // NOTE: replace SUPABASE_ANON_KEY above if you use this path
     const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2.33.0');
     supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
     });
   }
 
-  // ---------- DOM handles ----------
+  // ---------- DOM Elements ----------
   const authDiv = document.getElementById('auth');
   const appDiv = document.getElementById('app');
 
@@ -75,7 +70,6 @@ window.addEventListener('DOMContentLoaded', async () => {
   const profileEmailEl = document.getElementById('profileEmail');
   const profileAvatarEl = document.getElementById('profileAvatar');
 
-  // defensive checks
   if (!supabase) {
     console.error('Supabase client not available');
     return;
@@ -99,20 +93,20 @@ window.addEventListener('DOMContentLoaded', async () => {
     setTimeout(() => (authError.style.display = 'none'), 3500);
   }
 
-  // ---------- Auth actions ----------
+  // ---------- Auth ----------
   async function signInWithEmail(email, password) {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    return { data, error };
+    return await supabase.auth.signInWithPassword({ email, password });
   }
 
   async function signUpWithEmail(email, password) {
-    const { data, error } = await supabase.auth.signUp({ email, password });
-    return { data, error };
+    return await supabase.auth.signUp({ email, password });
   }
 
   async function signInWithGoogle() {
-    // redirectTo must be allowed in Supabase Auth -> URL Configuration
-    const { error } = await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin + window.location.pathname }});
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.origin + window.location.pathname }
+    });
     if (error) showAuthError(error.message);
   }
 
@@ -123,31 +117,36 @@ window.addEventListener('DOMContentLoaded', async () => {
     showAuth();
   }
 
-  // ---------- Profile helpers (uses 'profiles' table) ----------
+  // ---------- Profiles ----------
   async function ensureProfileRow(user) {
     if (!user) return;
     const { error } = await supabase.from('profiles').upsert({
       id: user.id,
       email: user.email,
       name: user.user_metadata?.full_name || user.user_metadata?.name || user.email,
-      avatar_url: user.user_metadata?.avatar_url || null,
+      avatar_url: user.user_metadata?.avatar_url || null
     }, { onConflict: 'id' });
     if (error) console.warn('ensureProfileRow error:', error.message);
   }
 
   async function loadProfilesList() {
-    // read from profiles table (public) — RLS must allow select for authenticated users
-    const { data, error } = await supabase.from('profiles').select('id,name,email,avatar_url').order('name', { ascending: true });
+    const { data, error } = await supabase.from('profiles')
+      .select('id,name,email,avatar_url')
+      .order('name', { ascending: true });
+
     if (error) {
       console.warn('Could not load profiles:', error.message);
-      usersList.innerHTML = `<div class="empty-state"><div class="empty-state-icon">👥</div><h3>Users List</h3><p>Unable to fetch users. Make sure "profiles" table exists and your RLS allows SELECT for authenticated users.</p></div>`;
+      usersList.innerHTML = `<div class="empty-state"><div class="empty-state-icon">👥</div><h3>Users List</h3><p>Unable to fetch users.</p></div>`;
       return;
     }
+
     const others = (data || []).filter(p => p.id !== currentUser?.id);
+
     if (others.length === 0) {
       usersList.innerHTML = `<div class="empty-state"><div class="empty-state-icon">👥</div><h3>No Other Users</h3><p>Create another account to start chatting.</p></div>`;
       return;
     }
+
     usersList.innerHTML = others.map(u => {
       const initial = (u.email || u.name || '?')[0]?.toUpperCase() || '?';
       const displayName = u.name || u.email.split('@')[0];
@@ -158,23 +157,20 @@ window.addEventListener('DOMContentLoaded', async () => {
         </div>
       `;
     }).join('');
+
     document.querySelectorAll('.user-item').forEach(item => {
-      item.addEventListener('click', () => {
-        openChat(item.dataset.userId, item.dataset.userEmail);
-      });
+      item.addEventListener('click', () => openChat(item.dataset.userId, item.dataset.userEmail));
     });
   }
 
-  // ---------- UI show/hide ----------
+  // ---------- UI ----------
   function showApp() {
     authDiv.style.display = 'none';
     appDiv.style.display = 'flex';
-
     currentUserNameEl && (currentUserNameEl.textContent = currentUser.email.split('@')[0]);
     profileNameEl && (profileNameEl.textContent = currentUser.email.split('@')[0]);
     profileEmailEl && (profileEmailEl.textContent = currentUser.email);
     profileAvatarEl && (profileAvatarEl.textContent = currentUser.email[0].toUpperCase());
-
     loadProfilesList();
   }
 
@@ -183,11 +179,11 @@ window.addEventListener('DOMContentLoaded', async () => {
     appDiv.style.display = 'none';
   }
 
-  // ---------- Sign-in / Sign-up button handlers ----------
+  // ---------- Auth Event Handlers ----------
   signInBtn?.addEventListener('click', async () => {
     const email = emailInput.value.trim();
     const password = passwordInput.value;
-    if (!email || !password) return showAuthError('Please enter email and password');
+    if (!email || !password) return showAuthError('Enter email and password');
     signInBtn.disabled = true;
     signInBtn.innerHTML = '<span class="loading"></span>';
     const { data, error } = await signInWithEmail(email, password);
@@ -202,7 +198,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   signUpBtn?.addEventListener('click', async () => {
     const email = emailInput.value.trim();
     const password = passwordInput.value;
-    if (!email || !password) return showAuthError('Please enter email and password');
+    if (!email || !password) return showAuthError('Enter email and password');
     if (password.length < 6) return showAuthError('Password must be at least 6 characters');
     signUpBtn.disabled = true;
     signUpBtn.innerHTML = '<span class="loading"></span>';
@@ -210,18 +206,13 @@ window.addEventListener('DOMContentLoaded', async () => {
     signUpBtn.disabled = false;
     signUpBtn.textContent = 'Create Account';
     if (error) return showAuthError(error.message);
-    showToast('Account created! Check your email for confirmation if required.');
+    showToast('Account created! Check email for confirmation.');
   });
 
-  googleBtn?.addEventListener('click', async () => {
-    await signInWithGoogle();
-  });
+  googleBtn?.addEventListener('click', signInWithGoogle);
+  signOutBtn?.addEventListener('click', signOut);
 
-  signOutBtn?.addEventListener('click', async () => {
-    await signOut();
-  });
-
-  // ---------- Chat navigation ----------
+  // ---------- Navigation ----------
   navUsers?.addEventListener('click', () => {
     navUsers.classList.add('active');
     navProfile.classList.remove('active');
@@ -243,34 +234,34 @@ window.addEventListener('DOMContentLoaded', async () => {
     chatHeaderName.textContent = name;
     chatHeaderAvatar.textContent = initial;
     chatView.classList.add('active');
+    displayedMessages.clear();
     loadMessages(userId);
     subscribeToMessages(userId);
   }
 
   backBtn?.addEventListener('click', () => {
     chatView.classList.remove('active');
-    if (messagesSubscription) {
-      try { supabase.removeChannel(messagesSubscription); } catch (e) { /* ignore */ }
-      messagesSubscription = null;
-    }
+    cleanupRealtime();
     currentChatUser = null;
   });
 
   async function loadMessages(otherUserId) {
     if (!currentUser) return;
     try {
-      const { data: messages, error } = await supabase
-        .from('messages')
+      const { data: messages, error } = await supabase.from('messages')
         .select('*')
         .or(`and(sender_id.eq.${currentUser.id},receiver_id.eq.${otherUserId}),and(sender_id.eq.${otherUserId},receiver_id.eq.${currentUser.id})`)
         .order('created_at', { ascending: true });
 
       if (error) throw error;
 
+      messagesContainer.innerHTML = '';
+      displayedMessages.clear();
+
       if (!messages || messages.length === 0) {
         messagesContainer.innerHTML = `<div class="empty-state"><div class="empty-state-icon">👋</div><h3>Start Chatting</h3><p>Send a message to get the conversation started!</p></div>`;
       } else {
-        renderMessages(messages);
+        messages.forEach(msg => appendMessage(msg, msg.sender_id === currentUser.id));
       }
     } catch (err) {
       console.error('Error loading messages:', err);
@@ -278,47 +269,24 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  function renderMessages(messages) {
-    messagesContainer.innerHTML = messages.map(msg => {
-      const isSent = msg.sender_id === currentUser.id;
-      const time = new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      return `<div class="message ${isSent ? 'sent' : 'received'}">${msg.content}<div class="message-meta">${time}</div></div>`;
-    }).join('');
-    messagesContainer.scrollTop = messagesContainer.scrollHeight;
-  }
-
   function subscribeToMessages(otherUserId) {
-    // Unsubscribe previous
-    if (messagesSubscription) {
-      try { supabase.removeChannel(messagesSubscription) } catch (e) {}
-      messagesSubscription = null;
-    }
-
-    messagesSubscription = supabase
-  .channel(`messages:${currentUser.id}:${otherUserId}`)
-  .on('postgres_changes', 
-      { event: 'INSERT', schema: 'public', table: 'messages' }, 
-      payload => {
-          const msg = payload.new;
-          // only append messages relevant to the current chat
-          if ((msg.sender_id === otherUserId && msg.receiver_id === currentUser.id) ||
-              (msg.sender_id === currentUser.id && msg.receiver_id === otherUserId)) {
-            // if msg sent by other user, mark received (false)
-            appendMessage(msg, msg.sender_id === currentUser.id);
-          }
-        }
-      )
-      .subscribe(status => {
-    if (status === 'SUBSCRIBED') return; // ignore normal subscribed message
-    console.error('Realtime subscribe status:', status);
-  });
+    cleanupRealtime();
+    messagesSubscription = supabase.channel(`messages:${currentUser.id}:${otherUserId}`)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'messages',
+        filter: `or(and(sender_id.eq.${currentUser.id},receiver_id.eq.${otherUserId}),and(sender_id.eq.${otherUserId},receiver_id.eq.${currentUser.id}))`
+      }, payload => appendMessage(payload.new, payload.new.sender_id === currentUser.id))
+      .subscribe();
   }
 
   function appendMessage(message, isSent) {
+    if (displayedMessages.has(message.id)) return;
+    displayedMessages.add(message.id);
     const time = new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const emptyState = messagesContainer.querySelector('.empty-state');
     if (emptyState) emptyState.remove();
-
     const messageDiv = document.createElement('div');
     messageDiv.className = `message ${isSent ? 'sent' : 'received'}`;
     messageDiv.innerHTML = `${message.content}<div class="message-meta">${time}</div>`;
@@ -328,22 +296,14 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   async function sendMessage() {
     const content = messageInput.value.trim();
-    if (!content || !currentChatUser) return;
+    if (!content || !currentChatUser || sendBtn.disabled) return;
     sendBtn.disabled = true;
-
     try {
-      const { data, error } = await supabase
-        .from('messages')
-        .insert({
-          content,
-          sender_id: currentUser.id,
-          receiver_id: currentChatUser.id
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-      appendMessage(data, true);
+      await supabase.from('messages').insert({
+        content,
+        sender_id: currentUser.id,
+        receiver_id: currentChatUser.id
+      });
       messageInput.value = '';
     } catch (err) {
       console.error('Error sending message:', err);
@@ -353,15 +313,6 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  sendBtn?.addEventListener('click', sendMessage);
-  messageInput?.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      sendMessage();
-    }
-  });
-
-  // ---------- Realtime cleanup ----------
   function cleanupRealtime() {
     if (messagesSubscription) {
       try { supabase.removeChannel(messagesSubscription); } catch (e) {}
@@ -369,16 +320,22 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  // ---------- Startup: session + auth listener ----------
+  sendBtn?.addEventListener('click', sendMessage);
+  messageInput?.addEventListener('keypress', e => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      sendMessage();
+    }
+  });
+
+  // ---------- Session startup ----------
   try {
     const { data: { session } } = await supabase.auth.getSession();
     if (session?.user) {
       currentUser = session.user;
       await ensureProfileRow(currentUser);
       showApp();
-    } else {
-      showAuth();
-    }
+    } else showAuth();
   } catch (e) {
     console.error('getSession error:', e);
     showAuth();
@@ -396,23 +353,12 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
-  // ---------- Element SDK hook (kept mostly intact) ----------
+  // ---------- Element SDK ----------
   async function onConfigChange(config) {
     const primaryColor = config.primary_color || defaultConfig.primary_color;
     const secondaryColor = config.secondary_color || defaultConfig.secondary_color;
     const customFont = config.font_family || defaultConfig.font_family;
     const baseSize = config.font_size || defaultConfig.font_size;
-
-    const appTitle = document.getElementById('appTitle');
-    const authTitle = document.getElementById('authTitle');
-    const authSubtitle = document.getElementById('authSubtitle');
-
-    if (appTitle) appTitle.textContent = config.app_title || defaultConfig.app_title;
-    if (authTitle) authTitle.textContent = config.app_title || defaultConfig.app_title;
-    if (authSubtitle) authSubtitle.textContent = config.welcome_message || defaultConfig.welcome_message;
-    if (signInBtn) signInBtn.textContent = config.sign_in_button || defaultConfig.sign_in_button;
-    if (signOutBtn) signOutBtn.textContent = config.sign_out_button || defaultConfig.sign_out_button;
-    if (sendBtn) sendBtn.textContent = config.send_button || defaultConfig.send_button;
 
     document.body.style.background = `linear-gradient(135deg, ${primaryColor} 0%, ${secondaryColor} 100%)`;
     document.body.style.fontFamily = `${customFont}, -apple-system, sans-serif`;
@@ -426,36 +372,20 @@ window.addEventListener('DOMContentLoaded', async () => {
 
     document.querySelectorAll('.message.sent').forEach(el => el.style.background = primaryColor);
     document.querySelectorAll('.mobile-header, .chat-header').forEach(el => el.style.background = primaryColor);
+
+    const appTitle = document.getElementById('appTitle');
+    const authTitle = document.getElementById('authTitle');
+    const authSubtitle = document.getElementById('authSubtitle');
+    if (appTitle) appTitle.textContent = config.app_title || defaultConfig.app_title;
+    if (authTitle) authTitle.textContent = config.app_title || defaultConfig.app_title;
+    if (authSubtitle) authSubtitle.textContent = config.welcome_message || defaultConfig.welcome_message;
+
+    if (signInBtn) signInBtn.textContent = config.sign_in_button || defaultConfig.sign_in_button;
+    if (signOutBtn) signOutBtn.textContent = config.sign_out_button || defaultConfig.sign_out_button;
+    if (sendBtn) sendBtn.textContent = config.send_button || defaultConfig.send_button;
   }
 
   if (window.elementSdk) {
-    window.elementSdk.init({
-      defaultConfig,
-      onConfigChange,
-      mapToCapabilities: (config) => ({
-        recolorables: [
-          { get: () => config.primary_color || defaultConfig.primary_color, set: v => window.elementSdk.setConfig({ primary_color: v }) },
-          { get: () => config.secondary_color || defaultConfig.secondary_color, set: v => window.elementSdk.setConfig({ secondary_color: v }) },
-          { get: () => config.background_color || defaultConfig.background_color, set: v => window.elementSdk.setConfig({ background_color: v }) },
-          { get: () => config.text_color || defaultConfig.text_color, set: v => window.elementSdk.setConfig({ text_color: v }) }
-        ],
-        borderables: [],
-        fontEditable: {
-          get: () => config.font_family || defaultConfig.font_family,
-          set: (value) => window.elementSdk.setConfig({ font_family: value })
-        },
-        fontSizeable: {
-          get: () => config.font_size || defaultConfig.font_size,
-          set: (value) => window.elementSdk.setConfig({ font_size: value })
-        }
-      }),
-      mapToEditPanelValues: (config) => new Map([
-        ["app_title", config.app_title || defaultConfig.app_title],
-        ["welcome_message", config.welcome_message || defaultConfig.welcome_message],
-        ["sign_in_button", config.sign_in_button || defaultConfig.sign_in_button],
-        ["sign_out_button", config.sign_out_button || defaultConfig.sign_out_button],
-        ["send_button", config.send_button || defaultConfig.send_button]
-      ])
-    });
+    window.elementSdk.init({ defaultConfig, onConfigChange });
   }
-}); // end DOMContentLoaded
+}); // DOMContentLoaded end
