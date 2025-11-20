@@ -1,11 +1,11 @@
-// script.js — ConvoRio Fixed & Updated
+// script.js — ConvoRio with Instant Messaging
 
 // ---------- Config ----------
 const USE_WINDOW_SUPABASE = !!window.supabase;
 const SUPABASE_URL = 'https://egusoznrqlddxpyqstqw.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVndXNvem5ycWxkZHhweXFzdHF3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA0MTQyOTIsImV4cCI6MjA3NTk5MDI5Mn0.N4TwIWVzTWMpmLJD95-wFd3NseWKrqNFb8gOWXIuf-c';
 
-// ---------- App state ----------
+// ---------- App State ----------
 let supabase = null;
 let currentUser = null;
 let currentChatUser = null;
@@ -28,7 +28,6 @@ const defaultConfig = {
 
 // ---------- DOM Ready ----------
 window.addEventListener('DOMContentLoaded', async () => {
-
   // ---------- Init Supabase ----------
   if (USE_WINDOW_SUPABASE) {
     supabase = window.supabase;
@@ -42,22 +41,18 @@ window.addEventListener('DOMContentLoaded', async () => {
   // ---------- DOM Elements ----------
   const authDiv = document.getElementById('auth');
   const appDiv = document.getElementById('app');
-
   const signInBtn = document.getElementById('sign-in-btn');
   const signUpBtn = document.getElementById('sign-up-btn');
   const signOutBtn = document.getElementById('sign-out-btn');
   const googleBtn = document.getElementById('sign-in-google-btn');
-
   const emailInput = document.getElementById('email-input');
   const passwordInput = document.getElementById('password-input');
   const authError = document.getElementById('auth-error');
-
   const usersList = document.getElementById('usersList');
   const navUsers = document.getElementById('nav-users');
   const navProfile = document.getElementById('nav-profile');
   const usersSection = document.getElementById('users');
   const profileSection = document.getElementById('profile');
-
   const chatView = document.getElementById('chatView');
   const backBtn = document.getElementById('backBtn');
   const chatHeaderName = document.getElementById('chatHeaderName');
@@ -65,7 +60,6 @@ window.addEventListener('DOMContentLoaded', async () => {
   const messagesContainer = document.getElementById('messages');
   const messageInput = document.getElementById('message-input');
   const sendBtn = document.getElementById('send-btn');
-
   const currentUserNameEl = document.getElementById('current-user-name');
   const profileNameEl = document.getElementById('profileName');
   const profileEmailEl = document.getElementById('profileEmail');
@@ -186,7 +180,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     const password = passwordInput.value;
     if (!email || !password) return showAuthError('Enter email and password');
     signInBtn.disabled = true;
-    signInBtn.textContent = 'Signing in...';
+    signInBtn.innerHTML = '<span class="loading"></span>';
     const { data, error } = await signInWithEmail(email, password);
     signInBtn.disabled = false;
     signInBtn.textContent = defaultConfig.sign_in_button;
@@ -202,7 +196,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     if (!email || !password) return showAuthError('Enter email and password');
     if (password.length < 6) return showAuthError('Password must be at least 6 characters');
     signUpBtn.disabled = true;
-    signUpBtn.textContent = 'Creating...';
+    signUpBtn.innerHTML = '<span class="loading"></span>';
     const { data, error } = await signUpWithEmail(email, password);
     signUpBtn.disabled = false;
     signUpBtn.textContent = 'Create Account';
@@ -282,44 +276,63 @@ window.addEventListener('DOMContentLoaded', async () => {
       .subscribe();
   }
 
-function appendMessage(message, isSent) {
-  const msgId = message.id || `${message.sender_id}_${message.receiver_id}_${message.created_at}`;
-  if (displayedMessages.has(msgId)) return;
-  displayedMessages.add(msgId);
+// ---------- Helpers ----------
+function appendMessage(message, isSent, scroll = true) {
+  if (displayedMessages.has(message.id)) return;
+  displayedMessages.add(message.id);
 
   const time = new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   const emptyState = messagesContainer.querySelector('.empty-state');
   if (emptyState) emptyState.remove();
 
   const messageDiv = document.createElement('div');
-  messageDiv.className = `message ${isSent ? 'sent' : 'received'} new-message`;
+  messageDiv.className = `message ${isSent ? 'sent' : 'received'} message-new`; // Add temporary class
   messageDiv.innerHTML = `${message.content}<div class="message-meta">${time}</div>`;
+
   messagesContainer.appendChild(messageDiv);
 
-  // Smooth scroll to latest message
-  messageDiv.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  // Trigger animation
+  requestAnimationFrame(() => {
+    messageDiv.classList.add('message-visible');
+  });
 
-  // Highlight new message briefly
-  messageDiv.style.transition = 'background-color 0.8s ease';
-  messageDiv.style.backgroundColor = '#ffeaa7'; // temporary highlight color
-  setTimeout(() => {
-    messageDiv.style.backgroundColor = isSent
-      ? (window.elementSdk?.getConfig()?.primary_color || defaultConfig.primary_color)
-      : '#e0e0e0'; // default received message color
-  }, 500);
+  if (scroll) messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+  // Remove animation classes after transition
+  messageDiv.addEventListener('transitionend', () => {
+    messageDiv.classList.remove('message-new', 'message-visible');
+  });
 }
+
 
   async function sendMessage() {
     const content = messageInput.value.trim();
     if (!content || !currentChatUser || sendBtn.disabled) return;
     sendBtn.disabled = true;
+
+    // --- Show message immediately ---
+    const tempMessage = {
+      id: `temp-${Date.now()}`,
+      sender_id: currentUser.id,
+      receiver_id: currentChatUser.id,
+      content,
+      created_at: new Date().toISOString()
+    };
+    appendMessage(tempMessage, true, true);
+    messageInput.value = '';
+
     try {
-      await supabase.from('messages').insert({
+      const { data, error } = await supabase.from('messages').insert({
         content,
         sender_id: currentUser.id,
         receiver_id: currentChatUser.id
-      });
-      messageInput.value = '';
+      }).select().single();
+
+      if (error) throw error;
+
+      // --- Replace temporary message with real one ---
+      displayedMessages.delete(tempMessage.id);
+      appendMessage(data, true, true);
     } catch (err) {
       console.error('Error sending message:', err);
       showToast('Failed to send message');
@@ -330,13 +343,13 @@ function appendMessage(message, isSent) {
 
   function cleanupRealtime() {
     if (messagesSubscription) {
-      try { supabase.removeChannel(messagesSubscription); } catch (e) { console.warn(e); }
+      try { supabase.removeChannel(messagesSubscription); } catch (e) {}
       messagesSubscription = null;
     }
   }
 
   sendBtn?.addEventListener('click', sendMessage);
-  messageInput?.addEventListener('keydown', e => {
+  messageInput?.addEventListener('keypress', e => {
     if (e.key === 'Enter') {
       e.preventDefault();
       sendMessage();
@@ -345,8 +358,7 @@ function appendMessage(message, isSent) {
 
   // ---------- Session startup ----------
   try {
-    const { data, error } = await supabase.auth.getSession();
-    const session = data?.session;
+    const { data: { session } } = await supabase.auth.getSession();
     if (session?.user) {
       currentUser = session.user;
       await ensureProfileRow(currentUser);
@@ -371,7 +383,6 @@ function appendMessage(message, isSent) {
 
   // ---------- Element SDK ----------
   async function onConfigChange(config) {
-    if (!document.body) return;
     const primaryColor = config.primary_color || defaultConfig.primary_color;
     const secondaryColor = config.secondary_color || defaultConfig.secondary_color;
     const customFont = config.font_family || defaultConfig.font_family;
@@ -405,5 +416,4 @@ function appendMessage(message, isSent) {
   if (window.elementSdk) {
     window.elementSdk.init({ defaultConfig, onConfigChange });
   }
-
-}); // DOMContentLoaded
+}); // DOMContentLoaded end
