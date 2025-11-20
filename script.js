@@ -1,11 +1,11 @@
-// script.js — ConvoRio with Instant Messaging
+// script.js — ConvoRio Updated: Real-Time Messaging Fix
 
 // ---------- Config ----------
 const USE_WINDOW_SUPABASE = !!window.supabase;
 const SUPABASE_URL = 'https://egusoznrqlddxpyqstqw.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVndXNvem5ycWxkZHhweXFzdHF3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA0MTQyOTIsImV4cCI6MjA3NTk5MDI5Mn0.N4TwIWVzTWMpmLJD95-wFd3NseWKrqNFb8gOWXIuf-c';
 
-// ---------- App State ----------
+// ---------- App state ----------
 let supabase = null;
 let currentUser = null;
 let currentChatUser = null;
@@ -65,26 +65,18 @@ window.addEventListener('DOMContentLoaded', async () => {
   const profileEmailEl = document.getElementById('profileEmail');
   const profileAvatarEl = document.getElementById('profileAvatar');
 
-  if (!supabase) {
-    console.error('Supabase client not available');
-    return;
-  }
+  if (!supabase) { console.error('Supabase client not available'); return; }
 
   // ---------- Helpers ----------
   function showToast(msg) {
-    const ex = document.querySelector('.toast');
-    if (ex) ex.remove();
-    const t = document.createElement('div');
-    t.className = 'toast';
-    t.textContent = msg;
-    document.body.appendChild(t);
-    setTimeout(() => t.remove(), 3000);
+    const ex = document.querySelector('.toast'); if (ex) ex.remove();
+    const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg;
+    document.body.appendChild(t); setTimeout(() => t.remove(), 3000);
   }
 
   function showAuthError(message) {
     if (!authError) return console.error('authError element missing:', message);
-    authError.textContent = message;
-    authError.style.display = 'block';
+    authError.textContent = message; authError.style.display = 'block';
     setTimeout(() => (authError.style.display = 'none'), 3500);
   }
 
@@ -128,31 +120,24 @@ window.addEventListener('DOMContentLoaded', async () => {
     const { data, error } = await supabase.from('profiles')
       .select('id,name,email,avatar_url')
       .order('name', { ascending: true });
-
     if (error) {
       console.warn('Could not load profiles:', error.message);
       usersList.innerHTML = `<div class="empty-state"><div class="empty-state-icon">👥</div><h3>Users List</h3><p>Unable to fetch users.</p></div>`;
       return;
     }
-
     const others = (data || []).filter(p => p.id !== currentUser?.id);
-
-    if (others.length === 0) {
+    if (!others.length) {
       usersList.innerHTML = `<div class="empty-state"><div class="empty-state-icon">👥</div><h3>No Other Users</h3><p>Create another account to start chatting.</p></div>`;
       return;
     }
-
     usersList.innerHTML = others.map(u => {
       const initial = (u.email || u.name || '?')[0]?.toUpperCase() || '?';
       const displayName = u.name || u.email.split('@')[0];
-      return `
-        <div class="user-item" data-user-id="${u.id}" data-user-email="${u.email}">
+      return `<div class="user-item" data-user-id="${u.id}" data-user-email="${u.email}">
           <div class="user-avatar">${initial}<span class="status-dot"></span></div>
           <div class="user-info"><p class="user-name">${displayName}</p><p class="user-status">Online</p></div>
-        </div>
-      `;
+        </div>`;
     }).join('');
-
     document.querySelectorAll('.user-item').forEach(item => {
       item.addEventListener('click', () => openChat(item.dataset.userId, item.dataset.userEmail));
     });
@@ -160,8 +145,7 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   // ---------- UI ----------
   function showApp() {
-    authDiv.style.display = 'none';
-    appDiv.style.display = 'flex';
+    authDiv.style.display = 'none'; appDiv.style.display = 'flex';
     currentUserNameEl && (currentUserNameEl.textContent = currentUser.email.split('@')[0]);
     profileNameEl && (profileNameEl.textContent = currentUser.email.split('@')[0]);
     profileEmailEl && (profileEmailEl.textContent = currentUser.email);
@@ -170,20 +154,16 @@ window.addEventListener('DOMContentLoaded', async () => {
   }
 
   function showAuth() {
-    authDiv.style.display = 'block';
-    appDiv.style.display = 'none';
+    authDiv.style.display = 'block'; appDiv.style.display = 'none';
   }
 
   // ---------- Auth Event Handlers ----------
   signInBtn?.addEventListener('click', async () => {
-    const email = emailInput.value.trim();
-    const password = passwordInput.value;
+    const email = emailInput.value.trim(); const password = passwordInput.value;
     if (!email || !password) return showAuthError('Enter email and password');
-    signInBtn.disabled = true;
-    signInBtn.innerHTML = '<span class="loading"></span>';
+    signInBtn.disabled = true; signInBtn.innerHTML = '<span class="loading"></span>';
     const { data, error } = await signInWithEmail(email, password);
-    signInBtn.disabled = false;
-    signInBtn.textContent = defaultConfig.sign_in_button;
+    signInBtn.disabled = false; signInBtn.textContent = defaultConfig.sign_in_button;
     if (error) return showAuthError(error.message);
     currentUser = data.user;
     await ensureProfileRow(currentUser);
@@ -191,15 +171,12 @@ window.addEventListener('DOMContentLoaded', async () => {
   });
 
   signUpBtn?.addEventListener('click', async () => {
-    const email = emailInput.value.trim();
-    const password = passwordInput.value;
+    const email = emailInput.value.trim(); const password = passwordInput.value;
     if (!email || !password) return showAuthError('Enter email and password');
     if (password.length < 6) return showAuthError('Password must be at least 6 characters');
-    signUpBtn.disabled = true;
-    signUpBtn.innerHTML = '<span class="loading"></span>';
+    signUpBtn.disabled = true; signUpBtn.innerHTML = '<span class="loading"></span>';
     const { data, error } = await signUpWithEmail(email, password);
-    signUpBtn.disabled = false;
-    signUpBtn.textContent = 'Create Account';
+    signUpBtn.disabled = false; signUpBtn.textContent = 'Create Account';
     if (error) return showAuthError(error.message);
     showToast('Account created! Check email for confirmation.');
   });
@@ -209,35 +186,25 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   // ---------- Navigation ----------
   navUsers?.addEventListener('click', () => {
-    navUsers.classList.add('active');
-    navProfile.classList.remove('active');
-    usersSection.classList.add('active');
-    profileSection.classList.remove('active');
+    navUsers.classList.add('active'); navProfile.classList.remove('active');
+    usersSection.classList.add('active'); profileSection.classList.remove('active');
   });
   navProfile?.addEventListener('click', () => {
-    navProfile.classList.add('active');
-    navUsers.classList.remove('active');
-    profileSection.classList.add('active');
-    usersSection.classList.remove('active');
+    navProfile.classList.add('active'); navUsers.classList.remove('active');
+    profileSection.classList.add('active'); usersSection.classList.remove('active');
   });
 
   // ---------- Messaging ----------
   function openChat(userId, userEmail) {
     currentChatUser = { id: userId, email: userEmail };
-    const name = userEmail.split('@')[0];
-    const initial = (userEmail[0] || '?').toUpperCase();
-    chatHeaderName.textContent = name;
-    chatHeaderAvatar.textContent = initial;
-    chatView.classList.add('active');
-    displayedMessages.clear();
-    loadMessages(userId);
-    subscribeToMessages(userId);
+    chatHeaderName.textContent = userEmail.split('@')[0];
+    chatHeaderAvatar.textContent = (userEmail[0] || '?').toUpperCase();
+    chatView.classList.add('active'); displayedMessages.clear();
+    loadMessages(userId); subscribeToMessages(userId);
   }
 
   backBtn?.addEventListener('click', () => {
-    chatView.classList.remove('active');
-    cleanupRealtime();
-    currentChatUser = null;
+    chatView.classList.remove('active'); cleanupRealtime(); currentChatUser = null;
   });
 
   async function loadMessages(otherUserId) {
@@ -247,17 +214,13 @@ window.addEventListener('DOMContentLoaded', async () => {
         .select('*')
         .or(`and(sender_id.eq.${currentUser.id},receiver_id.eq.${otherUserId}),and(sender_id.eq.${otherUserId},receiver_id.eq.${currentUser.id})`)
         .order('created_at', { ascending: true });
-
       if (error) throw error;
 
-      messagesContainer.innerHTML = '';
-      displayedMessages.clear();
+      messagesContainer.innerHTML = ''; displayedMessages.clear();
 
-      if (!messages || messages.length === 0) {
+      if (!messages?.length) {
         messagesContainer.innerHTML = `<div class="empty-state"><div class="empty-state-icon">👋</div><h3>Start Chatting</h3><p>Send a message to get the conversation started!</p></div>`;
-      } else {
-        messages.forEach(msg => appendMessage(msg, msg.sender_id === currentUser.id));
-      }
+      } else messages.forEach(msg => appendMessage(msg, msg.sender_id === currentUser.id));
     } catch (err) {
       console.error('Error loading messages:', err);
       messagesContainer.innerHTML = `<div class="empty-state"><div class="empty-state-icon">💬</div><h3>Couldn't Load Messages</h3><p>Check database or RLS policies.</p></div>`;
@@ -276,109 +239,53 @@ window.addEventListener('DOMContentLoaded', async () => {
       .subscribe();
   }
 
-// ---------- Helpers ----------
-function appendMessage(message, isSent, scroll = true) {
-  if (displayedMessages.has(message.id)) return;
-  displayedMessages.add(message.id);
-
-  const time = new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  const emptyState = messagesContainer.querySelector('.empty-state');
-  if (emptyState) emptyState.remove();
-
-  const messageDiv = document.createElement('div');
-  messageDiv.className = `message ${isSent ? 'sent' : 'received'} message-new`; // Add temporary class
-  messageDiv.innerHTML = `${message.content}<div class="message-meta">${time}</div>`;
-
-  messagesContainer.appendChild(messageDiv);
-
-  // Trigger animation
-  requestAnimationFrame(() => {
-    messageDiv.classList.add('message-visible');
-  });
-
-  if (scroll) messagesContainer.scrollTop = messagesContainer.scrollHeight;
-
-  // Remove animation classes after transition
-  messageDiv.addEventListener('transitionend', () => {
-    messageDiv.classList.remove('message-new', 'message-visible');
-  });
-}
-
+  function appendMessage(message, isSent) {
+    if (displayedMessages.has(message.id)) return;
+    displayedMessages.add(message.id);
+    const time = new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    messagesContainer.querySelector('.empty-state')?.remove();
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `message ${isSent ? 'sent' : 'received'}`;
+    messageDiv.innerHTML = `${message.content}<div class="message-meta">${time}</div>`;
+    messagesContainer.appendChild(messageDiv);
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+  }
 
   async function sendMessage() {
     const content = messageInput.value.trim();
     if (!content || !currentChatUser || sendBtn.disabled) return;
     sendBtn.disabled = true;
-
-    // --- Show message immediately ---
-    const tempMessage = {
-      id: `temp-${Date.now()}`,
-      sender_id: currentUser.id,
-      receiver_id: currentChatUser.id,
-      content,
-      created_at: new Date().toISOString()
-    };
-    appendMessage(tempMessage, true, true);
-    messageInput.value = '';
-
     try {
-      const { data, error } = await supabase.from('messages').insert({
-        content,
-        sender_id: currentUser.id,
-        receiver_id: currentChatUser.id
-      }).select().single();
-
+      const { data: newMessage, error } = await supabase.from('messages')
+        .insert({ content, sender_id: currentUser.id, receiver_id: currentChatUser.id })
+        .select().single();
       if (error) throw error;
-
-      // --- Replace temporary message with real one ---
-      displayedMessages.delete(tempMessage.id);
-      appendMessage(data, true, true);
+      appendMessage(newMessage, true);
     } catch (err) {
       console.error('Error sending message:', err);
       showToast('Failed to send message');
     } finally {
-      sendBtn.disabled = false;
+      sendBtn.disabled = false; messageInput.value = '';
     }
   }
 
   function cleanupRealtime() {
-    if (messagesSubscription) {
-      try { supabase.removeChannel(messagesSubscription); } catch (e) {}
-      messagesSubscription = null;
-    }
+    if (messagesSubscription) { try { supabase.removeChannel(messagesSubscription); } catch {} messagesSubscription = null; }
   }
 
   sendBtn?.addEventListener('click', sendMessage);
-  messageInput?.addEventListener('keypress', e => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      sendMessage();
-    }
-  });
+  messageInput?.addEventListener('keypress', e => { if (e.key === 'Enter') { e.preventDefault(); sendMessage(); } });
 
   // ---------- Session startup ----------
   try {
     const { data: { session } } = await supabase.auth.getSession();
-    if (session?.user) {
-      currentUser = session.user;
-      await ensureProfileRow(currentUser);
-      showApp();
-    } else showAuth();
-  } catch (e) {
-    console.error('getSession error:', e);
-    showAuth();
-  }
+    if (session?.user) { currentUser = session.user; await ensureProfileRow(currentUser); showApp(); } 
+    else showAuth();
+  } catch (e) { console.error('getSession error:', e); showAuth(); }
 
   supabase.auth.onAuthStateChange(async (_event, session) => {
-    if (session?.user) {
-      currentUser = session.user;
-      await ensureProfileRow(currentUser);
-      showApp();
-    } else {
-      currentUser = null;
-      cleanupRealtime();
-      showAuth();
-    }
+    if (session?.user) { currentUser = session.user; await ensureProfileRow(currentUser); showApp(); } 
+    else { currentUser = null; cleanupRealtime(); showAuth(); }
   });
 
   // ---------- Element SDK ----------
@@ -391,29 +298,21 @@ function appendMessage(message, isSent, scroll = true) {
     document.body.style.background = `linear-gradient(135deg, ${primaryColor} 0%, ${secondaryColor} 100%)`;
     document.body.style.fontFamily = `${customFont}, -apple-system, sans-serif`;
     document.body.style.fontSize = `${baseSize}px`;
-
     document.querySelectorAll('.btn:not(.red):not(.secondary)').forEach(el => {
       el.style.background = primaryColor;
       el.style.fontFamily = `${customFont}, -apple-system, sans-serif`;
       el.style.fontSize = `${baseSize}px`;
     });
-
     document.querySelectorAll('.message.sent').forEach(el => el.style.background = primaryColor);
     document.querySelectorAll('.mobile-header, .chat-header').forEach(el => el.style.background = primaryColor);
 
-    const appTitle = document.getElementById('appTitle');
-    const authTitle = document.getElementById('authTitle');
-    const authSubtitle = document.getElementById('authSubtitle');
-    if (appTitle) appTitle.textContent = config.app_title || defaultConfig.app_title;
-    if (authTitle) authTitle.textContent = config.app_title || defaultConfig.app_title;
-    if (authSubtitle) authSubtitle.textContent = config.welcome_message || defaultConfig.welcome_message;
-
+    document.getElementById('appTitle').textContent = config.app_title || defaultConfig.app_title;
+    document.getElementById('authTitle').textContent = config.app_title || defaultConfig.app_title;
+    document.getElementById('authSubtitle').textContent = config.welcome_message || defaultConfig.welcome_message;
     if (signInBtn) signInBtn.textContent = config.sign_in_button || defaultConfig.sign_in_button;
     if (signOutBtn) signOutBtn.textContent = config.sign_out_button || defaultConfig.sign_out_button;
     if (sendBtn) sendBtn.textContent = config.send_button || defaultConfig.send_button;
   }
 
-  if (window.elementSdk) {
-    window.elementSdk.init({ defaultConfig, onConfigChange });
-  }
-}); // DOMContentLoaded end
+  if (window.elementSdk) window.elementSdk.init({ defaultConfig, onConfigChange });
+});
