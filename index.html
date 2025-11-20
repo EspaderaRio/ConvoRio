@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="en">
+ <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Supabase Messenger</title>
+  <script>
+window.elementSdk = (() => {
+let config = {};
+let configCallback = null;
+
+function getEl(id) {
+const el =
+typeof id === "string" ? document.getElementById(id) : id;
+if (!el) console.warn("elementSdk: missing element:", id);
+return el;
+}
+
+return {
+
+init({ defaultConfig = {}, onConfigChange = null } = {}) {
+config = defaultConfig;
+configCallback = onConfigChange;
+if (configCallback) configCallback(config);
+},
+
+get(id) {
+  return getEl(id);
+},
+
+
+html(id, content) {
+  const el = getEl(id);
+  if (el) el.innerHTML = content;
+},
+
+append(id, content) {
+  const el = getEl(id);
+  if (el) el.insertAdjacentHTML("beforeend", content);
+},
+
+
+text(id, content) {
+  const el = getEl(id);
+  if (el) el.textContent = content;
+},
+
+on(id, event, handler) {
+  const el = getEl(id);
+  if (el) el.addEventListener(event, handler);
+},
+
+show(id) {
+  const el = getEl(id);
+  if (el) el.style.display = "";
+},
+
+hide(id) {
+  const el = getEl(id);
+  if (el) el.style.display = "none";
+},
+
+toggle(id) {
+  const el = getEl(id);
+  if (!el) return;
+  el.style.display =
+    el.style.display === "none" ? "" : "none";
+},
+
+setConfig(newConfig) {
+  config = { ...config, ...newConfig };
+  if (configCallback) configCallback(config);
+},
+
+onConfigChange(cb) {
+  configCallback = cb;
+},
+
+getConfig() {
+  return config;
+}
+};
+})();
+
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link rel="stylesheet" href="styles.css">
+  <style>@view-transition { navigation: auto; }</style>
+  <script>
+    window.dataSdk = (() => {
+let supabase = null;
+let currentUser = null;
+
+
+function requireSupabase() {
+if (!supabase) throw new Error("dataSdk not initialized — call dataSdk.init(supabaseClient)");
+}
+
+function requireUser() {
+if (!currentUser) throw new Error("No authenticated user present");
+}
+
+
+return {
+
+init(client, user) {
+supabase = client;
+currentUser = user || null;
+},
+
+setUser(user) {
+  currentUser = user;
+},
+
+async select(table, options = {}) {
+  requireSupabase();
+  requireUser();
+
+  let q = supabase.from(table).select("*");
+
+  if (options.filter && typeof options.filter === "object") {
+    Object.entries(options.filter).forEach(([col, val]) => {
+      q = q.eq(col, val);
+    });
+  }
+
+  if (options.order && options.order.column) {
+    q = q.order(options.order.column, { ascending: !!options.order.ascending });
+  }
+
+  const { data, error } = await q;
+  if (error) throw error;
+  return data;
+},
+
+async selectConversation(otherUserId) {
+  requireSupabase();
+  requireUser();
+
+  const uid = currentUser.id;
+
+  const { data, error } = await supabase
+    .from("messages")
+    .select("*")
+    .or(
+      `and(sender_id.eq.${uid},receiver_id.eq.${otherUserId}),` +
+      `and(sender_id.eq.${otherUserId},receiver_id.eq.${uid})`
+    )
+    .order("created_at", { ascending: true });
+
+  if (error) throw error;
+  return data;
+},
+
+async insert(table, values) {
+  requireSupabase();
+  requireUser();
+
+  const payload = { ...values };
+
+
+  if (!payload.user_id) payload.user_id = currentUser.id;
+
+  const { data, error } = await supabase
+    .from(table)
+    .insert(payload)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+},
+
+async update(table, id, values) {
+  requireSupabase();
+  requireUser();
+
+  const { data, error } = await supabase
+    .from(table)
+    .update(values)
+    .eq("id", id)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+},
+
+async delete(table, id) {
+  requireSupabase();
+  requireUser();
+
+  const { error } = await supabase.from(table).delete().eq("id", id);
+  if (error) throw error;
+  return true;
+},
+
+async getOtherProfiles() {
+  requireSupabase();
+  requireUser();
+
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("*")
+    .neq("id", currentUser.id)
+    .order("name", { ascending: true });
+
+  if (error) throw error;
+  return data;
+}
+
+};
+})();
+  </script>
+  <script src="https://cdn.tailwindcss.com" type="text/javascript"></script>
+ </head>
+ <body><!-- Auth Screen -->
+  <div id="auth" class="auth-container">
+   <h2 id="authTitle">Welcome to Supabase Messenger</h2>
+   <p id="authSubtitle">Sign in to start chatting with others in real-time</p>
+   <div class="form-group"><input type="email" id="email-input" placeholder="Email address">
+   </div>
+   <div class="form-group"><input type="password" id="password-input" placeholder="Password">
+   </div><button id="sign-in-btn" class="btn">Sign In</button> <button id="sign-up-btn" class="btn secondary" style="margin-top: 1rem;">Create Account</button>
+   <div id="auth-error" style="color: #e53e3e; margin-top: 1rem; display: none;"></div>
+  </div><!-- App -->
+  <div id="app" class="app-container"><!-- Users Section -->
+   <div id="users" class="section active">
+    <div class="mobile-header">
+     <h1 id="appTitle">Messages</h1>
+     <div class="header-actions">
+      <div class="user-badge"><span class="online-indicator"></span> <span id="current-user-name">User</span>
+      </div>
+     </div>
+    </div>
+    <div class="users-list" id="usersList">
+     <div class="empty-state">
+      <div class="empty-state-icon">
+       👥
+      </div>
+      <h3>No Users Yet</h3>
+      <p>When other users sign up, they'll appear here and you can start chatting!</p>
+     </div>
+    </div>
+   </div><!-- Chat View -->
+   <div class="chat-view" id="chatView">
+    <div class="chat-header"><button class="back-btn" id="backBtn">←</button>
+     <div class="chat-header-avatar" id="chatHeaderAvatar"></div>
+     <div class="chat-header-info">
+      <h3 id="chatHeaderName">User</h3>
+      <p>Online</p>
+     </div>
+    </div>
+    <div id="messages" class="messages"></div>
+    <div class="message-box"><input id="message-input" type="text" placeholder="Type a message..."> <button id="send-btn" class="send-btn-mobile">➤</button>
+    </div>
+   </div><!-- Profile Section -->
+   <div id="profile" class="section">
+    <div class="mobile-header">
+     <h1>Profile</h1>
+    </div>
+    <div class="profile-header">
+     <div class="profile-avatar" id="profileAvatar">
+      ?
+     </div>
+     <p class="profile-name-display" id="profileName">Loading...</p>
+     <p class="profile-email" id="profileEmail"></p>
+    </div>
+    <div class="profile-section">
+     <h3>About</h3>
+     <div class="info-card">
+      <p>This is a real-time messaging app powered by Supabase. Messages are instantly synced across all users, and you can see who's online.</p>
+     </div>
+    </div>
+    <div class="profile-section"><button id="sign-out-btn" class="btn red">Sign Out</button>
+    </div>
+   </div><!-- Bottom Navigation -->
+   <div class="bottom-nav"><button class="nav-item active" id="nav-users"> <span class="icon">💬</span> <span>Chats</span> </button> <button class="nav-item" id="nav-profile"> <span class="icon">👤</span> <span>Profile</span> </button>
+   </div>
+  </div>
+ <script type="module" src="script.js"></script>
+ </body>
+</html>
