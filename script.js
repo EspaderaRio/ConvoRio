@@ -239,35 +239,67 @@ window.addEventListener('DOMContentLoaded', async () => {
       .subscribe();
   }
 
-  function appendMessage(message, isSent) {
-    if (displayedMessages.has(message.id)) return;
-    displayedMessages.add(message.id);
-    const time = new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    messagesContainer.querySelector('.empty-state')?.remove();
-    const messageDiv = document.createElement('div');
-    messageDiv.className = `message ${isSent ? 'sent' : 'received'}`;
-    messageDiv.innerHTML = `${message.content}<div class="message-meta">${time}</div>`;
-    messagesContainer.appendChild(messageDiv);
-    messagesContainer.scrollTop = messagesContainer.scrollHeight;
-  }
+function appendMessage(message, isSent) {
+  if (displayedMessages.has(message.id)) return;
+  displayedMessages.add(message.id);
 
-  async function sendMessage() {
-    const content = messageInput.value.trim();
-    if (!content || !currentChatUser || sendBtn.disabled) return;
-    sendBtn.disabled = true;
-    try {
-      const { data: newMessage, error } = await supabase.from('messages')
-        .insert({ content, sender_id: currentUser.id, receiver_id: currentChatUser.id })
-        .select().single();
-      if (error) throw error;
-      appendMessage(newMessage, true);
-    } catch (err) {
-      console.error('Error sending message:', err);
-      showToast('Failed to send message');
-    } finally {
-      sendBtn.disabled = false; messageInput.value = '';
-    }
+  const time = new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const emptyState = messagesContainer.querySelector('.empty-state');
+  if (emptyState) emptyState.remove();
+
+  const messageDiv = document.createElement('div');
+  messageDiv.className = `message ${isSent ? 'sent' : 'received'}`;
+  messageDiv.setAttribute('data-id', message.id); // Add this line
+  messageDiv.innerHTML = `${message.content}<div class="message-meta">${time}</div>`;
+  messagesContainer.appendChild(messageDiv);
+  messagesContainer.scrollTop = messagesContainer.scrollHeight;
+}
+
+async function sendMessage() {
+  const content = messageInput.value.trim();
+  if (!content || !currentChatUser || sendBtn.disabled) return;
+
+  // Disable button while sending
+  sendBtn.disabled = true;
+
+  // Optimistically append message to chat immediately
+  const tempId = 'temp-' + Date.now();
+  const now = new Date();
+  const tempMessage = {
+    id: tempId,
+    content,
+    sender_id: currentUser.id,
+    receiver_id: currentChatUser.id,
+    created_at: now.toISOString()
+  };
+  appendMessage(tempMessage, true);
+  messageInput.value = '';
+
+  try {
+    const { data, error } = await supabase.from('messages').insert({
+      content,
+      sender_id: currentUser.id,
+      receiver_id: currentChatUser.id
+    }).select().single();
+
+    if (error) throw error;
+
+    // Replace temp message ID with real one from DB
+    displayedMessages.delete(tempId);
+    appendMessage(data, true);
+
+  } catch (err) {
+    console.error('Error sending message:', err);
+    showToast('Failed to send message');
+    // Remove temp message from chat if failed
+    displayedMessages.delete(tempId);
+    const msgEl = messagesContainer.querySelector(`.message[data-id="${tempId}"]`);
+    if (msgEl) msgEl.remove();
+  } finally {
+    sendBtn.disabled = false;
   }
+}
+
 
   function cleanupRealtime() {
     if (messagesSubscription) { try { supabase.removeChannel(messagesSubscription); } catch {} messagesSubscription = null; }
